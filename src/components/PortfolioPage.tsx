@@ -582,7 +582,7 @@ export default function PortfolioPage({
                         {folder.name}
                       </h4>
                       <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
-                        ผู้พัฒนา: <span className="text-slate-800 font-semibold">{samplePhoto?.developer || 'ยังไม่กำหนด'}</span>
+                        รูปแบบบ้าน: <span className="text-slate-800 font-semibold">{samplePhoto?.houseType || 'ยังไม่กำหนด'}</span>
                       </p>
                     </div>
 
@@ -781,7 +781,6 @@ function PhotoCard({
         {/* Bottom Details (Only on hover, or if large layout) */}
         {!isSmall && (
           <div className="absolute bottom-2.5 left-2.5 right-11 text-white font-medium drop-shadow opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-            <span className="text-[10px] uppercase font-bold tracking-wider block text-white/85">{photo.developer}</span>
             <span className="text-xs font-bold truncate block">{photo.villageName}</span>
           </div>
         )}
@@ -789,11 +788,11 @@ function PhotoCard({
 
       {/* Attributes Metadata (Below Photo - dynamic sizing based on grid selections) */}
       {!isSmall ? (
-        <div className="p-3.5 flex-1 flex flex-col justify-between space-y-2">
+        <div className="p-2.5 flex-1 flex flex-col justify-between space-y-1.5">
           <div>
-            <div className="flex justify-between items-start mb-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+            <div className="flex justify-between items-start mb-0.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
               <span>{photo.houseType.split(' ')[0]}</span>
-              <span className="text-slate-500 font-mono flex items-center gap-1"><Calendar size={10} /> {new Date(photo.uploadedAt).toLocaleDateString('th-TH', { month: 'short', day: 'numeric' })}</span>
+              <span className="text-slate-500 font-mono flex items-center gap-0.5"><Calendar size={9} /> {new Date(photo.uploadedAt).toLocaleDateString('th-TH', { month: 'short', day: 'numeric' })}</span>
             </div>
             
             <h4 className="text-xs font-extrabold text-slate-900 truncate" title={photo.villageName}>
@@ -801,23 +800,40 @@ function PhotoCard({
             </h4>
             
             {/* Fabric lists */}
-            <div className="mt-1.5 space-y-0.5">
-              {photo.fabricDetails.map((f, i) => (
-                <div key={f.id || i} className="text-[11px] text-slate-600 truncate font-semibold">
+            <div className="mt-1 space-y-0.5">
+              {photo.fabricDetails.slice(0, 2).map((f, i) => (
+                <div key={f.id || i} className="text-[10px] text-slate-600 truncate font-semibold">
                   <span className="text-slate-800">{f.name} / {f.color}</span>
                 </div>
               ))}
+              {photo.fabricDetails.length > 2 && (
+                <div className="text-[9px] text-slate-400 font-bold">+{photo.fabricDetails.length - 2} รายการผ้า</div>
+              )}
             </div>
           </div>
 
           {/* Curtain style and Tags footer */}
-          <div className="pt-2 border-t border-slate-200/50 flex justify-between items-center text-[10px] text-slate-500">
-            <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
-              {photo.curtainStyle.split(' ')[0]}
-            </span>
-            <span className="font-bold text-indigo-600">
-              #{photo.hashtags[0]?.split(' ')[0] || 'ม่าน'}
-            </span>
+          <div className="pt-1.5 border-t border-slate-200/50 flex flex-col gap-1 text-[9px] text-slate-500">
+            <div className="flex justify-between items-center w-full">
+              <span className="font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-md text-[9px]">
+                {photo.curtainStyle.split(' ')[0]}
+              </span>
+            </div>
+            {photo.hashtags && photo.hashtags.length > 0 ? (
+              <div className="flex flex-wrap gap-0.5 mt-0.5">
+                {photo.hashtags.map((tag, idx) => (
+                  <span key={idx} className="font-bold text-indigo-600 bg-indigo-50/70 px-1 py-0.5 rounded text-[9px]">
+                    #{tag.split(' ')[0]}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-0.5 mt-0.5">
+                <span className="font-bold text-indigo-600 bg-indigo-50/70 px-1 py-0.5 rounded text-[9px]">
+                  #ม่าน
+                </span>
+              </div>
+            )}
           </div>
         </div>
       ) : (
