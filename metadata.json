@@ -1,0 +1,6 @@
+{
+  "name": "PASAYA Portfolio",
+  "description": "An elegant, Apple Glass-inspired curtain installation showcase and portfolio management application with advanced filtering, searching, dynamic image presets, and local folder management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
