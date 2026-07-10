@@ -17,7 +17,8 @@ import {
   Layers,
   Sparkles,
   ChevronDown,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Pencil
 } from 'lucide-react';
 import { SavedPhotoItem, COLOR_PRESETS, CURTAIN_STYLES, HASHTAG_PRESETS, HOUSE_TYPES, EmployeeUser } from '../types';
 
@@ -29,6 +30,7 @@ interface PortfolioPageProps {
   title?: string;
   isFavoriteOnly?: boolean;
   activeUser?: EmployeeUser;
+  onEditPhoto?: (photo: SavedPhotoItem) => void;
 }
 
 export default function PortfolioPage({
@@ -38,7 +40,8 @@ export default function PortfolioPage({
   onOpenLightbox,
   title = 'ผลงานติดตั้งผ้าม่านทั้งหมด',
   isFavoriteOnly = false,
-  activeUser
+  activeUser,
+  onEditPhoto
 }: PortfolioPageProps) {
   // Navigation & Search States
   const [searchQuery, setSearchQuery] = useState('');
@@ -101,23 +104,38 @@ export default function PortfolioPage({
     return result;
   }, [photos, isFavoriteOnly, searchQuery, selectedHouseType, selectedStyle, selectedType, selectedHashtag]);
 
-  // Group photos into folders (by unique fabric combinations: fabricName + '-' + fabricColor)
+  // Persistent state for custom folder covers (Requirement 3: "เลือกรูปมาแสดงหน้าปกโฟลเดอร์ด้วย (กำหนดเองได้)")
+  const [folderCovers, setFolderCovers] = useState<{ [village: string]: string }>(() => {
+    try {
+      const saved = localStorage.getItem('village_folder_covers');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const handleSetFolderCover = (village: string, photoId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = { ...folderCovers, [village]: photoId };
+    setFolderCovers(updated);
+    try {
+      localStorage.setItem('village_folder_covers', JSON.stringify(updated));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Group photos into folders (Requirement 3: "โครงการหมู่บ้านให้ไปแสดงที่จัดโฟลเดอร์ผ้าแทน")
   const folders = useMemo(() => {
-    const grouped: { [key: string]: { key: string; name: string; color: string; items: SavedPhotoItem[] } } = {};
+    const grouped: { [key: string]: { key: string; name: string; items: SavedPhotoItem[] } } = {};
 
     filteredPhotos.forEach(p => {
-      // If a photo has multiple fabrics, we can index it in multiple folders OR its primary fabric folder
-      // Let's index it in its primary (first) fabric folder, or if empty, 'no-fabric'
-      const fabric = p.fabricDetails[0];
-      const key = fabric ? `${fabric.name.trim()}_${fabric.color.trim()}` : 'no-fabric';
-      const fName = fabric ? fabric.name : 'ผ้าไม่ระบุชื่อ';
-      const fColor = fabric ? fabric.color : 'สีไม่ระบุ';
+      const key = p.villageName?.trim() || 'โครงการไม่ระบุชื่อ';
 
       if (!grouped[key]) {
         grouped[key] = {
           key,
-          name: fName,
-          color: fColor,
+          name: key,
           items: []
         };
       }
@@ -247,9 +265,9 @@ export default function PortfolioPage({
             {isFavoriteOnly ? <Heart className="text-rose-500 fill-rose-500" size={24} /> : <Layers className="text-indigo-600" size={24} />}
             {openFolderKey && activeFolder ? (
               <span className="flex items-center gap-1.5 text-slate-800">
-                <button onClick={() => setOpenFolderKey(null)} className="hover:text-indigo-600 transition-colors">โฟลเดอร์ผ้า</button>
+                <button onClick={() => setOpenFolderKey(null)} className="hover:text-indigo-600 transition-colors">จัดโฟลเดอร์โครงการ</button>
                 <ChevronRight size={16} className="text-slate-400" />
-                <span className="text-indigo-600 font-extrabold">{activeFolder.name} ({activeFolder.color})</span>
+                <span className="text-indigo-600 font-extrabold">{activeFolder.name}</span>
               </span>
             ) : (
               title
@@ -464,13 +482,13 @@ export default function PortfolioPage({
                 <ArrowLeft size={16} />
               </button>
               <div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">คอลเลกชันประเภทผ้าเดียวกัน</span>
-                <h3 className="text-base font-bold text-slate-900">{activeFolder.name} สี {activeFolder.color}</h3>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">คอลเลกชันโครงการหมู่บ้าน</span>
+                <h3 className="text-base font-bold text-slate-900">{activeFolder.name}</h3>
               </div>
             </div>
             
             <button
-              onClick={(e) => downloadFolder(activeFolder.items, `${activeFolder.name}_${activeFolder.color}`, e)}
+              onClick={(e) => downloadFolder(activeFolder.items, activeFolder.name, e)}
               className="px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm shadow-indigo-500/10 cursor-pointer transition-colors"
             >
               <Download size={14} />
@@ -480,35 +498,46 @@ export default function PortfolioPage({
 
           {/* Folder Items Grid */}
           <div className={`grid ${gridClass}`}>
-            {activeFolder.items.map((photo) => (
-              <PhotoCard
-                key={photo.id}
-                photo={photo}
-                gridSize={gridSize}
-                onToggleLike={onToggleLike}
-                onDeletePhoto={onDeletePhoto}
-                onOpenLightbox={onOpenLightbox}
-                triggerImageDownload={triggerImageDownload}
-                activeUser={activeUser}
-              />
-            ))}
+            {activeFolder.items.map((photo, index) => {
+              const customCoverId = folderCovers[activeFolder.name];
+              const isCover = customCoverId === photo.id || (!customCoverId && index === 0);
+              
+              return (
+                <PhotoCard
+                  key={photo.id}
+                  photo={photo}
+                  gridSize={gridSize}
+                  onToggleLike={onToggleLike}
+                  onDeletePhoto={onDeletePhoto}
+                  onOpenLightbox={onOpenLightbox}
+                  triggerImageDownload={triggerImageDownload}
+                  activeUser={activeUser}
+                  isInsideFolder={true}
+                  onSetAsCover={(e) => handleSetFolderCover(activeFolder.name, photo.id, e)}
+                  isFolderCover={isCover}
+                  onEditPhoto={onEditPhoto}
+                />
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* VIEW PANEL 2: FOLDER VIEW (GROUPED BY FABRIC COMBINATIONS) */}
+      {/* VIEW PANEL 2: FOLDER VIEW (GROUPED BY VILLAGES) */}
       {!openFolderKey && viewMode === 'folder' && (
         <>
           {folders.length === 0 ? (
             <div className="text-center py-20 bg-white/40 border border-slate-200/40 rounded-3xl">
               <Folder className="mx-auto text-slate-300 mb-3" size={48} />
-              <p className="text-sm font-semibold text-slate-800">ไม่พบคอลเลกชันผ้าตามคำค้นหา</p>
+              <p className="text-sm font-semibold text-slate-800">ไม่พบโครงการตามคำค้นหา</p>
               <p className="text-xs text-slate-400 mt-1">กรุณาลองเปลี่ยนข้อมูลค้นหาใหม่</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 select-none">
               {folders.map((folder) => {
-                const samplePhoto = folder.items[0];
+                // Determine cover photo (Requirement 3: "เลือกรูปมาแสดงหน้าปกโฟลเดอร์ด้วย (กำหนดเองได้)")
+                const customCoverId = folderCovers[folder.key];
+                const samplePhoto = folder.items.find(p => p.id === customCoverId) || folder.items[0];
                 const activePreset = samplePhoto ? COLOR_PRESETS.find(p => p.id === samplePhoto.presetId) : null;
                 
                 return (
@@ -547,23 +576,23 @@ export default function PortfolioPage({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">
                         <Folder size={10} className="text-slate-400" />
-                        <span>โฟลเดอร์รหัสผ้า</span>
+                        <span>โฟลเดอร์โครงการหมู่บ้าน</span>
                       </div>
                       <h4 className="text-sm font-extrabold text-slate-900 truncate group-hover:text-indigo-600 transition-colors">
                         {folder.name}
                       </h4>
                       <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
-                        สีผ้า: <span className="text-slate-800">{folder.color}</span>
+                        ผู้พัฒนา: <span className="text-slate-800 font-semibold">{samplePhoto?.developer || 'ยังไม่กำหนด'}</span>
                       </p>
                     </div>
 
                     {/* Quick actions for folder */}
                     <div className="pt-3.5 mt-3 border-t border-slate-200/50 flex justify-between items-center text-xs text-slate-500 font-semibold">
-                      <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg">
-                        {samplePhoto?.curtainStyle.split(' ')[0] || 'ผ้าม่าน'}
+                      <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg truncate max-w-[120px]">
+                        {samplePhoto?.curtainStyle.split(', ')[0] || 'ผ้าม่าน'}
                       </span>
                       <button
-                        onClick={(e) => downloadFolder(folder.items, `${folder.name}_${folder.color}`, e)}
+                        onClick={(e) => downloadFolder(folder.items, folder.name, e)}
                         className="p-1.5 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 transition-all flex items-center gap-1 text-[10px]"
                         title="ดาวน์โหลดทั้งโฟลเดอร์"
                       >
@@ -600,6 +629,7 @@ export default function PortfolioPage({
                   onOpenLightbox={onOpenLightbox}
                   triggerImageDownload={triggerImageDownload}
                   activeUser={activeUser}
+                  onEditPhoto={onEditPhoto}
                 />
               ))}
             </div>
@@ -621,6 +651,10 @@ interface PhotoCardProps {
   onOpenLightbox: (photo: SavedPhotoItem) => void;
   triggerImageDownload: (photo: SavedPhotoItem, e?: React.MouseEvent) => any;
   activeUser?: EmployeeUser;
+  isInsideFolder?: boolean;
+  onSetAsCover?: (e: React.MouseEvent) => void;
+  isFolderCover?: boolean;
+  onEditPhoto?: (photo: SavedPhotoItem) => void;
 }
 
 function PhotoCard({
@@ -630,7 +664,11 @@ function PhotoCard({
   onDeletePhoto,
   onOpenLightbox,
   triggerImageDownload,
-  activeUser
+  activeUser,
+  isInsideFolder = false,
+  onSetAsCover,
+  isFolderCover = false,
+  onEditPhoto
 }: PhotoCardProps) {
   const activePreset = COLOR_PRESETS.find(p => p.id === photo.presetId);
 
@@ -652,6 +690,28 @@ function PhotoCard({
           style={{ filter: activePreset?.cssFilter || 'none' }}
           referrerPolicy="no-referrer"
         />
+
+        {/* Requirement 3: Set/Show Folder Cover */}
+        {isInsideFolder && (
+          <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5">
+            {isFolderCover ? (
+              <div className="px-2.5 py-1 rounded-lg bg-emerald-500 text-white text-[9px] font-extrabold shadow-md flex items-center gap-1 select-none">
+                ★ หน้าปกโครงการ
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onSetAsCover) onSetAsCover(e);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-black/60 hover:bg-emerald-600 hover:scale-105 text-white text-[9px] font-extrabold shadow transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+              >
+                ตั้งเป็นหน้าปก
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Hover overlay gradients */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -688,19 +748,34 @@ function PhotoCard({
           </button>
         </div>
 
-        {/* Delete floating button */}
+        {/* Delete & Edit floating button group */}
         {(activeUser?.role === 'admin' || 
           (activeUser?.role === 'staff' && (photo.employeeId === activeUser.id || photo.employee === activeUser.name))) && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDeletePhoto(photo.id);
-            }}
-            className="absolute bottom-2.5 right-2.5 w-7 h-7 rounded-full bg-black/60 text-white hover:bg-red-600 flex items-center justify-center backdrop-blur shadow opacity-0 group-hover:opacity-100 transition-opacity z-10 cursor-pointer"
-            title="ลบรูปภาพนี้"
-          >
-            <Trash2 size={11} />
-          </button>
+          <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 select-none">
+            {/* Edit Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onEditPhoto) onEditPhoto(photo);
+              }}
+              className="w-7 h-7 rounded-full bg-black/60 text-white hover:bg-emerald-600 hover:scale-105 flex items-center justify-center backdrop-blur shadow transition-all cursor-pointer"
+              title="แก้ไขข้อมูลผลงานติดตั้งนี้"
+            >
+              <Pencil size={10} />
+            </button>
+            
+            {/* Delete Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeletePhoto(photo.id);
+              }}
+              className="w-7 h-7 rounded-full bg-black/60 text-white hover:bg-red-600 hover:scale-105 flex items-center justify-center backdrop-blur shadow transition-all cursor-pointer"
+              title="ลบรูปภาพนี้"
+            >
+              <Trash2 size={10} />
+            </button>
+          </div>
         )}
 
         {/* Bottom Details (Only on hover, or if large layout) */}

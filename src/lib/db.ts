@@ -10,7 +10,8 @@ import {
   deleteDoc, 
   query, 
   orderBy, 
-  limit 
+  limit,
+  writeBatch
 } from "firebase/firestore";
 
 // Format Helpers
@@ -326,7 +327,13 @@ export async function getAllPhotos(): Promise<SavedPhotoItem[]> {
     const querySnapshot = await getDocs(collection(db, PHOTOS_COLLECTION));
     const list: SavedPhotoItem[] = [];
     querySnapshot.forEach((doc) => {
-      list.push(doc.data() as SavedPhotoItem);
+      const data = doc.data() as SavedPhotoItem;
+      // Sanitize old employee name
+      if (data.employee === 'สมศักดิ์ รักดี (Somsak)' || data.employee === 'Somsak' || data.employeeId === 'somsak') {
+        data.employee = 'ผู้ดูแลระบบ';
+        data.employeeId = 'T58121';
+      }
+      list.push(data);
     });
     // Sort by uploadedAt descending
     return list.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
@@ -395,6 +402,69 @@ export async function deletePhoto(id: string): Promise<void> {
   }
 }
 
+// Update single photo in Firestore
+export async function updatePhoto(id: string, updatedFields: Partial<SavedPhotoItem>): Promise<void> {
+  try {
+    const docRef = doc(db, PHOTOS_COLLECTION, id);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const data = snap.data() as SavedPhotoItem;
+      const merged = { ...data, ...updatedFields };
+      
+      // Enforce formatting guidelines for fabric name & color if they were updated
+      if (updatedFields.fabricDetails) {
+        merged.fabricDetails = updatedFields.fabricDetails.map(f => ({
+          ...f,
+          name: formatFabricName(f.name),
+          color: formatFabricColor(f.color)
+        }));
+      }
+      
+      await setDoc(docRef, merged);
+    } else {
+      throw new Error('Photo not found');
+    }
+  } catch (err) {
+    console.error('Error in updatePhoto:', err);
+    throw err;
+  }
+}
+
+// Update multiple photos in Firestore (as a batch update)
+export async function updateBatchPhotos(ids: string[], updatedFields: Partial<SavedPhotoItem>): Promise<void> {
+  try {
+    const batch = writeBatch(db);
+    
+    // Format fabric details if they are being updated
+    let formattedFabrics = updatedFields.fabricDetails;
+    if (formattedFabrics) {
+      formattedFabrics = formattedFabrics.map(f => ({
+        ...f,
+        name: formatFabricName(f.name),
+        color: formatFabricColor(f.color)
+      }));
+    }
+
+    for (const id of ids) {
+      const docRef = doc(db, PHOTOS_COLLECTION, id);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data() as SavedPhotoItem;
+        const merged = { ...data, ...updatedFields };
+        if (formattedFabrics) {
+          merged.fabricDetails = formattedFabrics;
+        }
+        batch.set(docRef, merged);
+      }
+    }
+    
+    await batch.commit();
+  } catch (err) {
+    console.error('Error in updateBatchPhotos:', err);
+    throw err;
+  }
+}
+
 // Activity Logging functions
 export async function saveUserLog(
   action: 'upload' | 'delete' | 'like' | 'unlike' | 'admin_config_update',
@@ -421,13 +491,65 @@ export async function getUserLogs(): Promise<UserLog[]> {
     const querySnapshot = await getDocs(collection(db, LOGS_COLLECTION));
     const logs: UserLog[] = [];
     querySnapshot.forEach((doc) => {
-      logs.push(doc.data() as UserLog);
+      const data = doc.data() as UserLog;
+      if (data.employeeName === 'สมศักดิ์ รักดี (Somsak)' || data.employeeName === 'Somsak') {
+        data.employeeName = 'ผู้ดูแลระบบ';
+      }
+      logs.push(data);
     });
     // Sort by timestamp descending
     return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   } catch (err) {
     console.error('Error in getUserLogs:', err);
     return [];
+  }
+}
+
+// Delete individual log
+export async function deleteUserLog(id: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, LOGS_COLLECTION, id));
+  } catch (err) {
+    console.error('Error in deleteUserLog:', err);
+    throw err;
+  }
+}
+
+// Batch delete logs
+export async function deleteUserLogs(ids: string[]): Promise<void> {
+  try {
+    const batch = writeBatch(db);
+    ids.forEach(id => {
+      batch.delete(doc(db, LOGS_COLLECTION, id));
+    });
+    await batch.commit();
+  } catch (err) {
+    console.error('Error in deleteUserLogs:', err);
+    throw err;
+  }
+}
+
+// Clear logs for a specific day (YYYY-MM-DD)
+export async function deleteUserLogsByDate(dateStr: string): Promise<number> {
+  try {
+    const qSnapshot = await getDocs(collection(db, LOGS_COLLECTION));
+    const batch = writeBatch(db);
+    let count = 0;
+    qSnapshot.forEach((doc) => {
+      const data = doc.data() as UserLog;
+      // Compare substring of timestamp prefix with dateStr
+      if (data.timestamp.startsWith(dateStr)) {
+        batch.delete(doc.ref);
+        count++;
+      }
+    });
+    if (count > 0) {
+      await batch.commit();
+    }
+    return count;
+  } catch (err) {
+    console.error('Error in deleteUserLogsByDate:', err);
+    throw err;
   }
 }
 

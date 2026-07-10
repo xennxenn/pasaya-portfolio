@@ -21,6 +21,7 @@ import LogsPage from './components/LogsPage';
 import Modal from './components/Modal';
 import LoginModal from './components/LoginModal';
 import Logo from './components/Logo';
+import EditPhotoModal from './components/EditPhotoModal';
 
 interface ToastNotification {
   id: string;
@@ -50,6 +51,9 @@ export default function App() {
   
   // Lightbox Modal state
   const [selectedPhoto, setSelectedPhoto] = useState<SavedPhotoItem | null>(null);
+
+  // Photo edit modal state
+  const [editingPhoto, setEditingPhoto] = useState<SavedPhotoItem | null>(null);
 
   // Floating notifications (Toasts)
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
@@ -467,6 +471,7 @@ export default function App() {
                     onDeletePhoto={handleDeletePhoto}
                     onOpenLightbox={setSelectedPhoto}
                     activeUser={activeUser}
+                    onEditPhoto={setEditingPhoto}
                   />
                 </motion.div>
               )}
@@ -503,6 +508,7 @@ export default function App() {
                     activeUser={activeUser}
                     title="ผลงานติดตั้งผ้าม่านที่คุณถูกใจ"
                     isFavoriteOnly={true}
+                    onEditPhoto={setEditingPhoto}
                   />
                 </motion.div>
               )}
@@ -558,6 +564,67 @@ export default function App() {
             onLoginSuccess={handleLoginSuccess}
             showToast={showToast}
           />
+
+          {/* Edit Photo Spec Modal Overlay */}
+          <EditPhotoModal
+            isOpen={editingPhoto !== null}
+            photo={editingPhoto}
+            allPhotos={photos}
+            activeUser={activeUser}
+            onClose={() => setEditingPhoto(null)}
+            onSaveSuccess={async () => {
+              const updatedPhotos = await getAllPhotos();
+              setPhotos(updatedPhotos);
+            }}
+            showToast={showToast}
+          />
+
+          {/* Universal Floating Upload Progress Widget (Crucial for Mobile & Collapsed Desktop view) */}
+          {activeUploads.length > 0 && (
+            <div 
+              id="global-upload-progress"
+              className="fixed bottom-20 left-4 right-4 md:left-6 md:right-auto md:bottom-6 md:w-80 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl p-4 shadow-xl z-50 animate-in slide-in-from-bottom-4 fade-in duration-300 pointer-events-auto"
+            >
+              <div className="flex items-center justify-between mb-2 select-none">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex items-center justify-center">
+                    <Loader2 className="animate-spin text-amber-500" size={14} />
+                    <span className="absolute text-[8px] font-black text-amber-600">%</span>
+                  </div>
+                  <span className="text-[11px] font-black text-slate-800 tracking-tight">กำลังอัปรูปภาพขึ้นคลาวด์ ({activeUploads.length})</span>
+                </div>
+                <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-lg font-extrabold animate-pulse border border-amber-100">
+                  {activeUploads[0].status === 'completed' ? 'เสร็จสิ้น' : activeUploads[0].status === 'failed' ? 'ล้มเหลว' : 'กำลังส่งงาน'}
+                </span>
+              </div>
+              
+              <div className="space-y-2.5 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
+                {activeUploads.map((up) => (
+                  <div key={up.id} className="text-[10px] bg-slate-50 border border-slate-100/60 p-2.5 rounded-xl">
+                    <div className="flex justify-between items-center text-slate-700 mb-1 font-bold">
+                      <span className="truncate max-w-[160px] font-extrabold">{up.villageName}</span>
+                      <span className="text-indigo-600 font-extrabold">{Math.round(up.progress)}%</span>
+                    </div>
+                    <div className="w-full bg-slate-200/60 rounded-full h-1.5 overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-300 rounded-full ${
+                          up.status === 'completed' 
+                            ? 'bg-emerald-500' 
+                            : up.status === 'failed' 
+                            ? 'bg-red-500' 
+                            : 'bg-indigo-500 animate-pulse'
+                        }`}
+                        style={{ width: `${up.progress}%` }}
+                      />
+                    </div>
+                    <p className="text-[8px] text-slate-400 font-bold mt-1 truncate">
+                      {up.progress === 100 ? 'บันทึกข้อมูลเรียบร้อยแล้ว' : `ส่งไฟล์แล้ว (${Math.round((up.progress/100) * up.totalPhotos)}/${up.totalPhotos} รูป)`}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Global Floating Glass Toast Notifications Stack */}
           <div id="toast-notifications-portal" className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">

@@ -24,6 +24,7 @@ export interface SavedPhotoItem extends PhotoItem {
   employee?: string; // พนักงานที่รับผิดชอบ
   employeeId?: string; // ID ของพนักงานที่อัปโหลด เพื่อให้ตรวจสอบสิทธิ์แก้ไขได้ถูกต้อง
   likedBy?: string[]; // รายชื่อ ID หรือ username ของพนักงานที่กดถูกใจรูปนี้
+  batchId?: string; // รหัสกลุ่มอัปโหลดพร้อมกัน
 }
 
 export interface EmployeeUser {
