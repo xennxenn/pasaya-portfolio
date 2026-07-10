@@ -687,7 +687,7 @@ export default function AdminPage({ photos, onPhotosUpdated, showToast, activeUs
                         required
                         value={empName}
                         onChange={(e) => setEmpName(e.target.value)}
-                        placeholder="เช่น สมศักดิ์ รักดี"
+                        placeholder="เช่น สมชาย มีสุข"
                         className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                       />
                     </div>

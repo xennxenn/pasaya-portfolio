@@ -118,7 +118,7 @@ export const DEFAULT_MASTER_DATA: MasterDataConfigs = {
     'เพนต์เฮาส์ (Penthouse)',
   ],
   employees: [
-    'สมศักดิ์ รักดี (Somsak)',
+    'ผู้ดูแลระบบ',
     'สมชาย มีสุข (Somchai)',
     'วิภา ศรีงาม (Wipa)',
     'มานะ ชูใจ (Mana)',
@@ -138,7 +138,7 @@ export const DEFAULT_MASTER_DATA: MasterDataConfigs = {
     'Others (อื่นๆ)',
   ],
   employeeAccounts: [
-    { id: 'emp-1', name: 'สมศักดิ์ รักดี (Somsak)', username: 'T58121', password: 'Admin', role: 'admin' },
+    { id: 'emp-1', name: 'ผู้ดูแลระบบ', username: 'T58121', password: 'Admin', role: 'admin' },
     { id: 'emp-2', name: 'สมชาย มีสุข (Somchai)', username: 'somchai', password: '123', role: 'staff' },
     { id: 'emp-3', name: 'วิภา ศรีงาม (Wipa)', username: 'wipa', password: '123', role: 'visitor' },
     { id: 'emp-4', name: 'มานะ ชูใจ (Mana)', username: 'mana', password: '123', role: 'staff' },
@@ -454,6 +454,26 @@ export async function getMasterData(): Promise<MasterDataConfigs> {
         data.employeeAccounts = DEFAULT_MASTER_DATA.employeeAccounts;
       }
       
+      let changed = false;
+
+      // Migrate employee names if 'สมศักดิ์ รักดี (Somsak)' exists
+      if (data.employees) {
+        const somsakEmpIdx = data.employees.indexOf('สมศักดิ์ รักดี (Somsak)');
+        if (somsakEmpIdx !== -1) {
+          data.employees[somsakEmpIdx] = 'ผู้ดูแลระบบ';
+          changed = true;
+        }
+      }
+
+      if (data.employeeAccounts) {
+        data.employeeAccounts.forEach(acc => {
+          if (acc.name === 'สมศักดิ์ รักดี (Somsak)') {
+            acc.name = 'ผู้ดูแลระบบ';
+            changed = true;
+          }
+        });
+      }
+      
       // Migrate and ensure T58121 (Admin) account is present
       const hasT58121 = data.employeeAccounts.some(acc => acc.username.toLowerCase() === 't58121');
       if (!hasT58121) {
@@ -461,6 +481,7 @@ export async function getMasterData(): Promise<MasterDataConfigs> {
         if (somsakIdx !== -1) {
           data.employeeAccounts[somsakIdx] = {
             ...data.employeeAccounts[somsakIdx],
+            name: 'ผู้ดูแลระบบ',
             username: 'T58121',
             password: 'Admin',
             role: 'admin'
@@ -468,20 +489,24 @@ export async function getMasterData(): Promise<MasterDataConfigs> {
         } else {
           data.employeeAccounts.push({
             id: 'emp-1',
-            name: 'สมศักดิ์ รักดี (Somsak)',
+            name: 'ผู้ดูแลระบบ',
             username: 'T58121',
             password: 'Admin',
             role: 'admin'
           });
         }
-        await setDoc(docRef, data);
+        changed = true;
       } else {
         // Ensure its password is exact
         const adminAcc = data.employeeAccounts.find(acc => acc.username.toLowerCase() === 't58121');
         if (adminAcc && adminAcc.password !== 'Admin') {
           adminAcc.password = 'Admin';
-          await setDoc(docRef, data);
+          changed = true;
         }
+      }
+
+      if (changed) {
+        await setDoc(docRef, data);
       }
 
       return data;

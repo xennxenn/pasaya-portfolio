@@ -137,7 +137,7 @@ export default function Sidebar({
       {/* Desktop Sidebar Container */}
       <aside
         id="main-sidebar"
-        className={`hidden md:flex fixed md:sticky top-0 left-0 h-screen z-40 transition-all duration-500 ease-out flex-col
+        className={`hidden md:flex fixed top-0 left-0 bottom-0 h-screen z-40 transition-all duration-500 ease-out flex-col
           bg-white border-r border-slate-200 shadow-sm
           ${isCollapsed ? 'w-20' : 'w-72'} 
         `}
@@ -168,42 +168,7 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* Dynamic Installer Profile Session Switcher */}
-        {!isCollapsed && (
-          <div className="mx-4 mt-4 p-3 bg-gradient-to-br from-indigo-50/70 to-slate-50/50 border border-slate-200/60 rounded-2xl space-y-2.5 shadow-sm">
-            <div className="flex items-center gap-1.5 text-[10px] text-indigo-800 font-black uppercase tracking-wider">
-              <UserCheck size={12} className="text-indigo-600 animate-pulse" />
-              <span>พนักงานลงชื่อปัจจุบัน</span>
-            </div>
-            
-            <div className="flex items-center gap-2.5">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs border flex-shrink-0 shadow-sm
-                ${activeUser.role === 'admin' ? 'bg-red-50 text-red-600 border-red-200' : ''}
-                ${activeUser.role === 'staff' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : ''}
-                ${activeUser.role === 'visitor' ? 'bg-amber-50 text-amber-600 border-amber-200' : ''}
-              `}>
-                {activeUser.name.charAt(0)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <h4 className="text-xs font-extrabold text-slate-800 truncate leading-tight">{activeUser.name}</h4>
-                <span className={`inline-block text-[8px] font-black uppercase tracking-wider mt-0.5 rounded px-1
-                  ${activeUser.role === 'admin' ? 'bg-red-100 text-red-700' : ''}
-                  ${activeUser.role === 'staff' ? 'bg-emerald-100 text-emerald-700' : ''}
-                  ${activeUser.role === 'visitor' ? 'bg-amber-100 text-amber-700' : ''}
-                `}>
-                  {activeUser.role === 'admin' ? 'แอดมิน' : activeUser.role === 'staff' ? 'พนักงาน' : 'ผู้เยี่ยมชม'}
-                </span>
-              </div>
-            </div>
 
-            <button
-              onClick={onSwitchAccountClick}
-              className="w-full py-1 bg-white hover:bg-indigo-50 border border-indigo-150 rounded-lg text-[10px] font-bold text-indigo-700 transition-all cursor-pointer shadow-sm"
-            >
-              สลับบัญชีพนักงาน
-            </button>
-          </div>
-        )}
 
         {/* Navigation Items */}
         <div className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">

@@ -30,7 +30,7 @@ interface ToastNotification {
 
 const DEFAULT_ADMIN_USER: EmployeeUser = {
   id: 'T58121',
-  name: 'สมศักดิ์ รักดี (Somsak)',
+  name: 'ผู้ดูแลระบบ',
   username: 'T58121',
   password: 'Admin',
   role: 'admin'
@@ -59,7 +59,12 @@ export default function App() {
     const saved = localStorage.getItem('pasaya_active_user');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (parsed && (parsed.name === 'สมศักดิ์ รักดี (Somsak)' || parsed.id === 'T58121' || parsed.username === 'T58121')) {
+          parsed.name = 'ผู้ดูแลระบบ';
+          localStorage.setItem('pasaya_active_user', JSON.stringify(parsed));
+        }
+        return parsed;
       } catch (err) {
         return null;
       }
@@ -396,9 +401,11 @@ export default function App() {
     >
       
       {/* GLOWING AMBIENT BACKGROUND LIGHTS */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-gradient-to-tr from-sky-300/15 via-indigo-300/10 to-transparent blur-[100px] pointer-events-none z-0" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] rounded-full bg-gradient-to-bl from-rose-300/10 via-purple-300/10 to-transparent blur-[120px] pointer-events-none z-0" />
-      <div className="absolute top-[40%] left-[30%] w-[30vw] h-[30vw] rounded-full bg-indigo-300/5 blur-[80px] pointer-events-none z-0" />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-gradient-to-tr from-sky-300/15 via-indigo-300/10 to-transparent blur-[100px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] rounded-full bg-gradient-to-bl from-rose-300/10 via-purple-300/10 to-transparent blur-[120px]" />
+        <div className="absolute top-[40%] left-[30%] w-[30vw] h-[30vw] rounded-full bg-indigo-300/5 blur-[80px]" />
+      </div>
 
       {/* Main Spinner Loader until database seeds */}
       {!dbReady ? (
@@ -440,8 +447,11 @@ export default function App() {
             onSwitchAccountClick={() => setIsLoginModalOpen(true)}
           />
 
+          {/* Spacer to push content when sidebar is fixed */}
+          <div className={`hidden md:block flex-shrink-0 transition-all duration-500 ease-out ${isSidebarCollapsed ? 'w-20' : 'w-72'}`} />
+
           {/* Main App Stage with padding-top and padding-bottom clearance on mobile */}
-          <main className="flex-1 min-w-0 pt-20 pb-20 md:py-8 md:px-8 lg:px-10 z-10">
+          <main className="flex-1 min-w-0 px-4 pt-20 pb-20 md:py-8 md:px-8 lg:px-10 z-10">
             <AnimatePresence mode="wait">
               {activeTab === 'showcase' && (
                 <motion.div

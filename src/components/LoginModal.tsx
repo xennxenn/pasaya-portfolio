@@ -12,7 +12,7 @@ interface LoginModalProps {
 }
 
 const DEFAULT_EMPLOYEES: EmployeeUser[] = [
-  { id: 'emp-1', name: 'สมศักดิ์ รักดี (Somsak)', username: 'T58121', password: 'Admin', role: 'admin' },
+  { id: 'emp-1', name: 'ผู้ดูแลระบบ', username: 'T58121', password: 'Admin', role: 'admin' },
   { id: 'emp-2', name: 'สมชาย มีสุข (Somchai)', username: 'somchai', password: '123', role: 'staff' },
   { id: 'emp-3', name: 'วิภา ศรีงาม (Wipa)', username: 'wipa', password: '123', role: 'visitor' },
   { id: 'emp-4', name: 'มานะ ชูใจ (Mana)', username: 'mana', password: '123', role: 'staff' },
