@@ -84,6 +84,7 @@ const LOGS_COLLECTION = 'user_logs';
 
 // Default configs
 export const DEFAULT_MASTER_DATA: MasterDataConfigs = {
+  dbSeeded: false,
   cloudinaryCloudName: 'fyouajy1',
   cloudinaryUploadPreset: 'ml_default',
   cloudinaryEnabled: true,
@@ -273,31 +274,45 @@ export async function initDB(): Promise<void> {
     // 1. Initialise master configs settings if not present
     const settingsDocRef = doc(db, SETTINGS_COLLECTION, 'masterData');
     const settingsDocSnap = await getDoc(settingsDocRef);
+    let dbSeeded = false;
+
     if (!settingsDocSnap.exists()) {
-      await setDoc(settingsDocRef, DEFAULT_MASTER_DATA);
+      // New Database: Set initial master data settings with dbSeeded false
+      const initialData = { ...DEFAULT_MASTER_DATA, dbSeeded: false };
+      await setDoc(settingsDocRef, initialData);
+      dbSeeded = false;
+    } else {
+      const data = settingsDocSnap.data() as MasterDataConfigs;
+      dbSeeded = data.dbSeeded === true;
     }
 
-    // 2. Initialise photos if empty
-    const photosColRef = collection(db, PHOTOS_COLLECTION);
-    const photosSnap = await getDocs(photosColRef);
-    if (photosSnap.empty) {
-      for (let index = 0; index < INITIAL_INSTALLATIONS.length; index++) {
-        const inst = INITIAL_INSTALLATIONS[index];
-        const photoData = SAMPLE_PHOTOS[inst.photoIndex];
-        const id = `seed-photo-${index}`;
-        const item: SavedPhotoItem = {
-          ...photoData,
-          id,
-          villageName: inst.village,
-          houseType: inst.houseType,
-          developer: inst.developer,
-          employee: 'ระบบอัตโนมัติ (System)'
-        };
-        await setDoc(doc(db, PHOTOS_COLLECTION, id), item);
-      }
+    // 2. Initialise photos if we haven't seeded yet
+    if (!dbSeeded) {
+      const photosColRef = collection(db, PHOTOS_COLLECTION);
+      const photosSnap = await getDocs(photosColRef);
       
-      // Save logs
-      await saveUserLog('upload', 'ระบบอัตโนมัติ (System)', 'ติดตั้งข้อมูลตัวอย่างผลงาน 6 รายการเสร็จสมบูรณ์');
+      if (photosSnap.empty) {
+        for (let index = 0; index < INITIAL_INSTALLATIONS.length; index++) {
+          const inst = INITIAL_INSTALLATIONS[index];
+          const photoData = SAMPLE_PHOTOS[inst.photoIndex];
+          const id = `seed-photo-${index}`;
+          const item: SavedPhotoItem = {
+            ...photoData,
+            id,
+            villageName: inst.village,
+            houseType: inst.houseType,
+            developer: inst.developer,
+            employee: 'ระบบอัตโนมัติ (System)'
+          };
+          await setDoc(doc(db, PHOTOS_COLLECTION, id), item);
+        }
+        
+        // Save logs
+        await saveUserLog('upload', 'ระบบอัตโนมัติ (System)', 'ติดตั้งข้อมูลตัวอย่างผลงาน 6 รายการเสร็จสมบูรณ์');
+      }
+
+      // Mark database as seeded in settings so we NEVER auto-seed again even if all photos are deleted
+      await setDoc(settingsDocRef, { dbSeeded: true }, { merge: true });
     }
   } catch (err) {
     console.error('Error during initDB:', err);

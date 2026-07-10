@@ -375,7 +375,7 @@ export default function PortfolioPage({
                     className="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white/50 text-xs focus:outline-none cursor-pointer"
                   >
                     <option value="all">ทั้งหมด (All Types)</option>
-                    {HOUSE_TYPES.map(type => (
+                    {[...HOUSE_TYPES].sort((a, b) => a.localeCompare(b, 'th')).map(type => (
                       <option key={type} value={type}>{type.split(' ')[0]}</option>
                     ))}
                   </select>
@@ -393,7 +393,7 @@ export default function PortfolioPage({
                     className="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white/50 text-xs focus:outline-none cursor-pointer"
                   >
                     <option value="all">ทั้งหมด (All Styles)</option>
-                    {CURTAIN_STYLES.map(style => (
+                    {[...CURTAIN_STYLES].sort((a, b) => a.localeCompare(b, 'th')).map(style => (
                       <option key={style} value={style}>{style.split(' ')[0]}</option>
                     ))}
                   </select>
@@ -428,7 +428,7 @@ export default function PortfolioPage({
                     className="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white/50 text-xs focus:outline-none cursor-pointer"
                   >
                     <option value="all">ทั้งหมด (All Tags)</option>
-                    {HASHTAG_PRESETS.map(tag => (
+                    {[...HASHTAG_PRESETS].sort((a, b) => a.localeCompare(b, 'th')).map(tag => (
                       <option key={tag} value={tag}>{tag.split(' ')[0]}</option>
                     ))}
                   </select>

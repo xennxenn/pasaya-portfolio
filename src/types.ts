@@ -53,6 +53,7 @@ export interface MasterDataConfigs {
   cloudinaryCloudName?: string;
   cloudinaryUploadPreset?: string;
   cloudinaryEnabled?: boolean;
+  dbSeeded?: boolean;
 }
 
 export interface CurtainInstallation {

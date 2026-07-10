@@ -55,7 +55,7 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
   const existingVillages = React.useMemo(() => {
     if (!allPhotos) return [];
     const names = allPhotos.map(p => p.villageName?.trim()).filter(Boolean);
-    return Array.from(new Set(names));
+    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b, 'th'));
   }, [allPhotos]);
 
   const filteredVillages = React.useMemo(() => {
@@ -109,6 +109,23 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
       try {
         setIsLoadingConfigs(true);
         const master = await getMasterData();
+        
+        // Sort lists alphabetically (A-Z) using Thai-aware comparison
+        if (master) {
+          if (Array.isArray(master.houseTypes)) {
+            master.houseTypes = [...master.houseTypes].sort((a, b) => a.localeCompare(b, 'th'));
+          }
+          if (Array.isArray(master.developers)) {
+            master.developers = [...master.developers].sort((a, b) => a.localeCompare(b, 'th'));
+          }
+          if (Array.isArray(master.curtainStyles)) {
+            master.curtainStyles = [...master.curtainStyles].sort((a, b) => a.localeCompare(b, 'th'));
+          }
+          if (Array.isArray(master.hashtags)) {
+            master.hashtags = [...master.hashtags].sort((a, b) => a.localeCompare(b, 'th'));
+          }
+        }
+
         setConfigs(master);
         
         // Initial defaults based on dynamic configs
