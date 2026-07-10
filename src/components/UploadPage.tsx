@@ -94,17 +94,28 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
   // Helper inputs for adding fabrics
   const [newFabricName, setNewFabricName] = useState('');
   const [newFabricColor, setNewFabricColor] = useState('');
+  const [showFabricDropdown, setShowFabricDropdown] = useState(false);
 
   // Shared metadata states for the upload batch (Applying "อัปโหลดพร้อมกันข้อมูลใช้ข้อมูลเดียวกันในการอัปโหลด")
   const [commonCurtainTypes, setCommonCurtainTypes] = useState<string[]>(['ผ้าม่านทึบ']);
   const [commonCurtainStyles, setCommonCurtainStyles] = useState<string[]>([]);
   const [commonHashtags, setCommonHashtags] = useState<string[]>([]);
-  const [commonFabricDetails, setCommonFabricDetails] = useState<FabricItem[]>([
-    { id: 'f-def-1', name: 'PREMIUM SATIN', color: 'Creamy Gold' }
-  ]);
+  const [commonFabricDetails, setCommonFabricDetails] = useState<FabricItem[]>([]);
   const [commonPresetId, setCommonPresetId] = useState('original');
 
   const selectedPhoto = photos.find(p => p.id === selectedPhotoId) || null;
+
+  // Fabrics filtering for searchable dropdown
+  const filteredFabrics = React.useMemo(() => {
+    const query = newFabricName.trim().toUpperCase();
+    const list = configs?.fabrics || [];
+    if (!query) return list;
+    return list.filter(f => f.toUpperCase().includes(query));
+  }, [newFabricName, configs?.fabrics]);
+
+  const isFreeTextAllowed = React.useMemo(() => {
+    return commonCurtainStyles.some(s => s.includes('มู่ลี่') || s.includes('ม่านม้วน'));
+  }, [commonCurtainStyles]);
 
   // Compute developer sorted list (First: ยังไม่กำหนด, Second: บ้านสร้างแทน, Third onwards: sorted A-Z)
   const sortedDevelopers = React.useMemo(() => {
@@ -262,6 +273,15 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
     // Apply exact requirements formatting
     const formattedName = formatFabricName(newFabricName);
     const formattedColor = formatFabricColor(newFabricColor);
+
+    // Enforce dropdown constraint if NOT "มู่ลี่" or "ม่านม้วน"
+    const isFreeTextAllowed = commonCurtainStyles.some(s => s.includes('มู่ลี่') || s.includes('ม่านม้วน'));
+    const isExistingFabric = configs?.fabrics?.some(f => f.trim().toUpperCase() === formattedName.toUpperCase()) || false;
+
+    if (!isFreeTextAllowed && !isExistingFabric) {
+      alert('รูปแบบม่านที่เลือกไม่อนุญาตให้ระบุชื่อผ้าอิสระ กรุณาเลือกชื่อผ้าที่มีอยู่ในระบบ (Dropdown) หรือติดต่อผู้ดูแลเพื่อเพิ่มรายชื่อผ้าใหม่');
+      return;
+    }
 
     const newFab: FabricItem = {
       id: `f-${Date.now()}`,
@@ -698,21 +718,58 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
 
               {/* Add Fabric Inputs */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  placeholder="ชื่อผ้า เช่น Satin, Linen"
-                  value={newFabricName}
-                  onChange={(e) => setNewFabricName(e.target.value)}
-                  className="px-3 py-2 rounded-xl border border-slate-200 bg-white/50 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  style={{ minHeight: '38px' }}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="ค้นหาชื่อผ้า เช่น SATIN, LINEN"
+                    value={newFabricName}
+                    onChange={(e) => {
+                      setNewFabricName(e.target.value);
+                      setShowFabricDropdown(true);
+                    }}
+                    onFocus={() => setShowFabricDropdown(true)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white/50 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                  />
+                  {showFabricDropdown && (
+                    <>
+                      <div className="fixed inset-0 z-[9998]" onClick={() => setShowFabricDropdown(false)} />
+                      <div className="absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-[9999] max-h-48 overflow-y-auto divide-y divide-slate-100 py-1 select-none">
+                        {filteredFabrics.length === 0 ? (
+                          <div className="p-3 text-center text-slate-400 text-[10px] font-bold">
+                            ไม่พบชื่อผ้าในระบบ
+                            {isFreeTextAllowed ? (
+                              <span className="block text-emerald-500 mt-1">สามารถพิมพ์ระบุชื่อผ้าอิสระได้</span>
+                            ) : (
+                              <span className="block text-amber-500 mt-1">ต้องเลือกจากระบบ (ม่านม้วน/มู่ลี่ เท่านั้นที่พิมพ์เองได้)</span>
+                            )}
+                          </div>
+                        ) : (
+                          filteredFabrics.map((fab, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setNewFabricName(fab);
+                                setShowFabricDropdown(false);
+                              }}
+                              className="w-full text-left px-3 py-2.5 hover:bg-indigo-50 hover:text-indigo-600 transition-colors text-[11px] font-bold text-slate-700 cursor-pointer flex items-center justify-between"
+                            >
+                              <span>{fab}</span>
+                              <span className="text-[9px] bg-indigo-50 text-indigo-500 px-1.5 py-0.5 rounded font-bold uppercase">MASTER</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
                 <div className="flex gap-1.5">
                   <input
                     type="text"
                     placeholder="สีผ้า เช่น ครีม, เทาเข้ม"
                     value={newFabricColor}
                     onChange={(e) => setNewFabricColor(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-xl border border-slate-200 bg-white/50 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="flex-1 px-3 py-2 rounded-xl border border-slate-200 bg-white/50 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
                     style={{ minHeight: '38px' }}
                   />
                   <button
@@ -723,6 +780,20 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
                     <Plus size={16} />
                   </button>
                 </div>
+              </div>
+
+              {/* Helpful Badge constraint indicator */}
+              <div className="flex items-center justify-between px-1">
+                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${
+                  isFreeTextAllowed 
+                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' 
+                    : 'bg-slate-50 text-slate-500 border border-slate-100'
+                }`}>
+                  {isFreeTextAllowed ? '✨ สามารถพิมพ์ชื่อผ้าเองได้อิสระ' : '🔒 ต้องเลือกชื่อผ้าที่มีในระบบ'}
+                </span>
+                <span className="text-[9px] text-slate-400 font-medium">
+                  * มู่ลี่, ม่านม้วน พิมพ์เองได้ ที่เหลือต้องเลือกจาก dropdown
+                </span>
               </div>
             </div>
 

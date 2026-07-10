@@ -20,7 +20,8 @@ import {
   Edit,
   ShieldAlert,
   Upload,
-  Heart
+  Heart,
+  Tag
 } from 'lucide-react';
 import { MasterDataConfigs, SavedPhotoItem, EmployeeUser } from '../types';
 import { getMasterData, saveMasterData, saveUserLog, deletePhoto, compressImage } from '../lib/db';
@@ -253,7 +254,8 @@ export default function AdminPage({ photos, onPhotosUpdated, showToast, activeUs
   // ADD item for standard string arrays
   const handleAddItem = async () => {
     if (!configs) return;
-    const trimmed = newItemText.trim();
+    const isFabric = activeConfigCategory === 'fabrics';
+    const trimmed = isFabric ? newItemText.trim().toUpperCase() : newItemText.trim();
     if (!trimmed) {
       showToast('กรุณากรอกข้อความ', 'error');
       return;
@@ -265,7 +267,10 @@ export default function AdminPage({ photos, onPhotosUpdated, showToast, activeUs
       return;
     }
 
-    const updatedList = [...currentList, trimmed];
+    let updatedList = [...currentList, trimmed];
+    if (isFabric) {
+      updatedList = updatedList.sort((a, b) => a.localeCompare(b, 'en'));
+    }
     const updatedConfigs = {
       ...configs,
       [activeConfigCategory]: updatedList
@@ -291,15 +296,20 @@ export default function AdminPage({ photos, onPhotosUpdated, showToast, activeUs
   // EDIT item for standard string arrays
   const handleSaveEditItem = async (indexToEdit: number) => {
     if (!configs) return;
-    const trimmed = editingText.trim();
+    const isFabric = activeConfigCategory === 'fabrics';
+    const trimmed = isFabric ? editingText.trim().toUpperCase() : editingText.trim();
     if (!trimmed) {
       showToast('กรุณากรอกข้อความ', 'error');
       return;
     }
 
-    const currentList = [...(configs[activeConfigCategory] as string[] || [])];
+    let currentList = [...(configs[activeConfigCategory] as string[] || [])];
     const oldVal = currentList[indexToEdit];
     currentList[indexToEdit] = trimmed;
+
+    if (isFabric) {
+      currentList = currentList.sort((a, b) => a.localeCompare(b, 'en'));
+    }
 
     const updatedConfigs = {
       ...configs,
@@ -517,6 +527,7 @@ export default function AdminPage({ photos, onPhotosUpdated, showToast, activeUs
       case 'hashtags': return 'ประเภท Hashtag';
       case 'houseTypes': return 'ประเภทบ้าน';
       case 'developers': return 'ผู้พัฒนา (Developer)';
+      case 'fabrics': return 'รายชื่อชื่อผ้า (Fabrics)';
       case 'logoUrl': return 'โลโก้แอปพลิเคชัน';
       case 'cloudinaryEnabled': return 'เชื่อมต่อระบบฝากรูป (Cloudinary)';
       default: return cat;
@@ -621,6 +632,7 @@ export default function AdminPage({ photos, onPhotosUpdated, showToast, activeUs
                 { key: 'hashtags', icon: Hash, color: 'text-rose-500' },
                 { key: 'houseTypes', icon: Home, color: 'text-emerald-500' },
                 { key: 'developers', icon: Building, color: 'text-sky-500' },
+                { key: 'fabrics', icon: Tag, color: 'text-violet-500' },
                 { key: 'logoUrl', icon: ImageIcon, color: 'text-purple-500' },
                 { key: 'cloudinaryEnabled', icon: Upload, color: 'text-sky-500' }
               ] as const).map((item) => {

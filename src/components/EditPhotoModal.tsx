@@ -59,6 +59,7 @@ export default function EditPhotoModal({
   const [fabrics, setFabrics] = useState<FabricItem[]>([]);
   const [hashtags, setHashtags] = useState<string[]>([]);
   const [presetId, setPresetId] = useState('original');
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   // Find all photos uploaded in the same batch
   const siblingPhotos = React.useMemo(() => {
@@ -169,6 +170,13 @@ export default function EditPhotoModal({
     setFabrics(prev => prev.map(f => f.id === id ? { ...f, [field]: value } : f));
   };
 
+  const getFilteredFabrics = (val: string) => {
+    const query = val.trim().toUpperCase();
+    const list = configs?.fabrics || [];
+    if (!query) return list;
+    return list.filter(f => f.toUpperCase().includes(query));
+  };
+
   // Submit form
   const handleSaveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,6 +193,22 @@ export default function EditPhotoModal({
       showToast('กรุณากรอกชื่อและสีผ้าให้ครบถ้วนทุกช่อง', 'error');
       return;
     }
+
+    // Validate each fabric based on selected styles
+    const isFreeTextAllowed = curtainStyles.some(s => s.includes('มู่ลี่') || s.includes('ม่านม้วน'));
+    const masterFabricsUpper = (configs?.fabrics || []).map(f => f.trim().toUpperCase());
+
+    if (!isFreeTextAllowed) {
+      const invalidFabric = fabrics.find(f => {
+        const nameUpper = f.name.trim().toUpperCase();
+        return !masterFabricsUpper.includes(nameUpper);
+      });
+      if (invalidFabric) {
+        showToast(`ชื่อผ้า "${invalidFabric.name}" ไม่อนุญาตให้พิมพ์เองสำหรับรูปแบบม่านชุดนี้ กรุณาเลือกชื่อผ้าที่มีอยู่ในระบบ`, 'error');
+        return;
+      }
+    }
+
     if (curtainStyles.length === 0) {
       showToast('กรุณาเลือกรูปแบบผ้าม่านอย่างน้อย 1 รายการ', 'error');
       return;
@@ -518,7 +542,7 @@ export default function EditPhotoModal({
                   </button>
                 </div>
 
-                <div className="space-y-2">
+                 <div className="space-y-2">
                   {fabrics.map((fabric, index) => (
                     <div 
                       key={fabric.id} 
@@ -529,13 +553,56 @@ export default function EditPhotoModal({
                       </span>
                       
                       {/* Fabric name */}
-                      <input
-                        type="text"
-                        value={fabric.name}
-                        onChange={(e) => handleFabricChange(fabric.id, 'name', e.target.value)}
-                        placeholder="รหัส/ชื่อผ้า (เช่น VC-882)..."
-                        className="flex-1 h-9 px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      />
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={fabric.name}
+                          onChange={(e) => {
+                            handleFabricChange(fabric.id, 'name', e.target.value);
+                            setOpenDropdownId(fabric.id);
+                          }}
+                          onFocus={() => setOpenDropdownId(fabric.id)}
+                          placeholder="รหัส/ชื่อผ้า (เช่น VC-882)..."
+                          className="w-full h-9 px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                        {openDropdownId === fabric.id && (
+                          <>
+                            <div className="fixed inset-0 z-[9998]" onClick={() => setOpenDropdownId(null)} />
+                            <div className="absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-[9999] max-h-40 overflow-y-auto divide-y divide-slate-100 py-1 select-none">
+                              {(() => {
+                                const filtered = getFilteredFabrics(fabric.name);
+                                const isFreeAllowed = curtainStyles.some(s => s.includes('มู่ลี่') || s.includes('ม่านม้วน'));
+                                if (filtered.length === 0) {
+                                  return (
+                                    <div className="p-2 text-center text-slate-400 text-[10px] font-bold">
+                                      ไม่พบชื่อผ้าในระบบ
+                                      {isFreeAllowed ? (
+                                        <span className="block text-emerald-500 mt-0.5">พิมพ์ระบุอิสระได้</span>
+                                      ) : (
+                                        <span className="block text-amber-500 mt-0.5">ต้องเลือกจากระบบเท่านั้น</span>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                return filtered.map((fab, idx) => (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => {
+                                      handleFabricChange(fabric.id, 'name', fab);
+                                      setOpenDropdownId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-2 hover:bg-indigo-50 hover:text-indigo-600 transition-colors text-[10px] font-extrabold text-slate-700 cursor-pointer flex items-center justify-between"
+                                  >
+                                    <span>{fab}</span>
+                                    <span className="text-[8px] bg-indigo-50 text-indigo-500 px-1 py-0.5 rounded font-black uppercase">MASTER</span>
+                                  </button>
+                                ));
+                              })()}
+                            </div>
+                          </>
+                        )}
+                      </div>
 
                       {/* Fabric color */}
                       <input
@@ -558,6 +625,27 @@ export default function EditPhotoModal({
                       )}
                     </div>
                   ))}
+                </div>
+
+                {/* Helpful Badge constraint indicator */}
+                <div className="flex items-center justify-between px-1">
+                  {(() => {
+                    const isFreeAllowed = curtainStyles.some(s => s.includes('มู่ลี่') || s.includes('ม่านม้วน'));
+                    return (
+                      <>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${
+                          isFreeAllowed 
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' 
+                            : 'bg-slate-50 text-slate-500 border border-slate-100'
+                        }`}>
+                          {isFreeAllowed ? '✨ สามารถพิมพ์ชื่อผ้าเองได้อิสระ' : '🔒 ต้องเลือกชื่อผ้าที่มีในระบบ'}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-medium">
+                          * มู่ลี่, ม่านม้วน พิมพ์เองได้ ที่เหลือต้องเลือกจาก dropdown
+                        </span>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 

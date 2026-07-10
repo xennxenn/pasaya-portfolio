@@ -49,6 +49,7 @@ export interface MasterDataConfigs {
   houseTypes: string[];
   employees: string[];
   developers: string[];
+  fabrics?: string[];
   employeeAccounts?: EmployeeUser[];
   logoUrl?: string; // URL หรือ Base64 ของโลโก้แอปพลิเคชันที่แอดมินอัปโหลดเอง
   cloudinaryCloudName?: string;
