@@ -37,7 +37,7 @@ export interface EmployeeUser {
 
 export interface UserLog {
   id: string;
-  action: 'upload' | 'delete' | 'like' | 'unlike' | 'admin_config_update';
+  action: 'upload' | 'delete' | 'like' | 'unlike' | 'admin_config_update' | 'share';
   employeeName: string; // ชื่อพนักงานที่ทำรายการ
   details: string; // รายละเอียดการทำรายการ
   timestamp: string; // ISO-8601 string

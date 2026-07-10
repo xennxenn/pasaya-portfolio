@@ -13,7 +13,8 @@ import {
   ChevronRight,
   ZoomIn,
   ZoomOut,
-  Maximize2
+  Maximize2,
+  Share2
 } from 'lucide-react';
 import { SavedPhotoItem, COLOR_PRESETS } from '../types';
 
@@ -24,6 +25,7 @@ interface ModalProps {
   onSelectPhoto: (photo: SavedPhotoItem) => void;
   onToggleLike: (id: string) => void;
   triggerImageDownload: (photo: SavedPhotoItem) => void;
+  triggerImageShare: (photo: SavedPhotoItem) => void;
 }
 
 export default function Modal({
@@ -32,7 +34,8 @@ export default function Modal({
   onClose,
   onSelectPhoto,
   onToggleLike,
-  triggerImageDownload
+  triggerImageDownload,
+  triggerImageShare
 }: ModalProps) {
   if (!photo) return null;
 
@@ -327,11 +330,21 @@ export default function Modal({
           <div className="flex gap-1.5 pt-3 mt-3 border-t border-slate-200">
             <button
               onClick={() => triggerImageDownload(photo)}
-              className="flex-1 py-2 px-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] flex items-center justify-center gap-1 shadow-sm shadow-indigo-100 transition-all cursor-pointer"
+              className="flex-1 py-2 px-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] flex items-center justify-center gap-1 shadow-sm shadow-indigo-100 transition-all cursor-pointer"
               style={{ minHeight: '36px' }}
             >
               <Download size={12} />
               <span>ดาวน์โหลดรูป</span>
+            </button>
+
+            <button
+              onClick={() => triggerImageShare(photo)}
+              className="flex-1 py-2 px-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] flex items-center justify-center gap-1 shadow-sm shadow-indigo-100 transition-all cursor-pointer active:scale-95"
+              style={{ minHeight: '36px' }}
+              title="แชร์รูปภาพไปยังแอปอื่น"
+            >
+              <Share2 size={12} />
+              <span>แชร์รูปภาพ</span>
             </button>
 
             <button
@@ -406,6 +419,16 @@ export default function Modal({
                 <Download size={16} />
               </button>
 
+              {/* Share Image */}
+              <button
+                onClick={() => triggerImageShare(photo)}
+                className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer flex items-center justify-center active:scale-95"
+                style={{ minWidth: '40px', minHeight: '40px' }}
+                title="แชร์รูปภาพไปยังแอปอื่น"
+              >
+                <Share2 size={16} />
+              </button>
+
               {/* Exit Full Screen */}
               <button
                 onClick={() => setIsFullScreen(false)}
@@ -475,12 +498,7 @@ export default function Modal({
             </button>
           </div>
 
-          {/* Swipe prompt hint on Mobile */}
-          <div className="absolute bottom-6 inset-x-0 text-center pointer-events-none z-40 px-4">
-            <span className="inline-block px-4 py-2 rounded-full bg-slate-900/90 backdrop-blur-md text-[10px] font-black text-slate-200 tracking-wider shadow-lg border border-white/10">
-              👈 ปัดหน้าจอ ซ้าย-ขวา เพื่อเปลี่ยนรูป (บน iPhone / มือถือ) 👉
-            </span>
-          </div>
+
 
           {/* Large Nav Arrows (For desktop) */}
           {currentIndex > 0 && (

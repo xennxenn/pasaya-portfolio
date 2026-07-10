@@ -18,7 +18,8 @@ import {
   Sparkles,
   ChevronDown,
   Image as ImageIcon,
-  Pencil
+  Pencil,
+  Share2
 } from 'lucide-react';
 import { SavedPhotoItem, COLOR_PRESETS, CURTAIN_STYLES, HASHTAG_PRESETS, HOUSE_TYPES, EmployeeUser } from '../types';
 
@@ -31,6 +32,7 @@ interface PortfolioPageProps {
   isFavoriteOnly?: boolean;
   activeUser?: EmployeeUser;
   onEditPhoto?: (photo: SavedPhotoItem) => void;
+  onSharePhoto?: (photo: SavedPhotoItem) => void;
 }
 
 export default function PortfolioPage({
@@ -41,7 +43,8 @@ export default function PortfolioPage({
   title = 'ผลงานติดตั้งผ้าม่านทั้งหมด',
   isFavoriteOnly = false,
   activeUser,
-  onEditPhoto
+  onEditPhoto,
+  onSharePhoto
 }: PortfolioPageProps) {
   // Navigation & Search States
   const [searchQuery, setSearchQuery] = useState('');
@@ -516,6 +519,7 @@ export default function PortfolioPage({
                   onSetAsCover={(e) => handleSetFolderCover(activeFolder.name, photo.id, e)}
                   isFolderCover={isCover}
                   onEditPhoto={onEditPhoto}
+                  onSharePhoto={onSharePhoto}
                 />
               );
             })}
@@ -630,6 +634,7 @@ export default function PortfolioPage({
                   triggerImageDownload={triggerImageDownload}
                   activeUser={activeUser}
                   onEditPhoto={onEditPhoto}
+                  onSharePhoto={onSharePhoto}
                 />
               ))}
             </div>
@@ -655,6 +660,7 @@ interface PhotoCardProps {
   onSetAsCover?: (e: React.MouseEvent) => void;
   isFolderCover?: boolean;
   onEditPhoto?: (photo: SavedPhotoItem) => void;
+  onSharePhoto?: (photo: SavedPhotoItem) => void;
 }
 
 function PhotoCard({
@@ -668,7 +674,8 @@ function PhotoCard({
   isInsideFolder = false,
   onSetAsCover,
   isFolderCover = false,
-  onEditPhoto
+  onEditPhoto,
+  onSharePhoto
 }: PhotoCardProps) {
   const activePreset = COLOR_PRESETS.find(p => p.id === photo.presetId);
 
@@ -732,6 +739,18 @@ function PhotoCard({
             title="ดาวน์โหลดรูปภาพนี้"
           >
             <Download size={11} />
+          </button>
+
+          {/* Share Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onSharePhoto) onSharePhoto(photo);
+            }}
+            className="w-7 h-7 rounded-full bg-black/60 text-white hover:bg-emerald-600 flex items-center justify-center backdrop-blur shadow transition-all cursor-pointer active:scale-95"
+            title="แชร์รูปภาพนี้ไปยังแอปอื่น"
+          >
+            <Share2 size={11} />
           </button>
 
           {/* Like Heart Button */}

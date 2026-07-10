@@ -398,6 +398,143 @@ export default function App() {
     }
   };
 
+  // Native image sharing with preset filter baking (called from Lightbox)
+  const triggerImageShare = async (photo: SavedPhotoItem) => {
+    try {
+      showToast('กำลังเตรียมไฟล์รูปภาพเพื่อแชร์...', 'info');
+      const preset = COLOR_PRESETS.find(p => p.id === photo.presetId);
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = photo.url;
+
+      const attemptShare = async (canvas: HTMLCanvasElement) => {
+        canvas.toBlob(async (blob) => {
+          if (!blob) {
+            showToast('ไม่สามารถแปลงรูปภาพเพื่อแชร์ได้', 'error');
+            return;
+          }
+          const fileName = `curtain_${photo.villageName.replace(/\s+/g, '_')}_${photo.id}.jpg`;
+          const file = new File([blob], fileName, { type: 'image/jpeg' });
+
+          if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+              await navigator.share({
+                files: [file],
+                title: `ผลงานติดตั้งม่าน PASAYA`,
+                text: `ผลงานติดตั้งผ้าม่านจาก PASAYA ณ โครงการ ${photo.villageName}`
+              });
+              showToast('แชร์รูปภาพสำเร็จ', 'success');
+              // Log activity
+              await saveUserLog(
+                'share',
+                activeUser?.name || 'พนักงาน',
+                `แชร์รูปภาพผลงานติดตั้ง โครงการ "${photo.villageName}"`
+              );
+            } catch (err: any) {
+              if (err.name !== 'AbortError') {
+                console.error(err);
+                showToast(`ไม่สามารถแชร์รูปภาพได้: ${err.message}`, 'error');
+              }
+            }
+          } else {
+            // Fallback for sharing not supported or browser environment constraints
+            try {
+              if (navigator.share) {
+                await navigator.share({
+                  title: `ผลงานติดตั้งม่าน PASAYA - ${photo.villageName}`,
+                  text: `ผลงานติดตั้งผ้าม่านจาก PASAYA ณ โครงการ ${photo.villageName}`,
+                  url: photo.url
+                });
+                showToast('แชร์ลิงก์รูปภาพสำเร็จ', 'success');
+              } else {
+                await navigator.clipboard.writeText(photo.url);
+                showToast('อุปกรณ์ไม่รองรับการแชร์รูปตรง ได้คัดลอกลิงก์รูปภาพไปยังคลิปบอร์ดแล้ว', 'info');
+              }
+            } catch (fallbackErr: any) {
+              if (fallbackErr.name !== 'AbortError') {
+                showToast('ไม่สามารถแชร์ลิงก์ได้ ได้ดาวน์โหลดรูปลงเครื่องแทน', 'info');
+                const link = document.createElement('a');
+                link.download = fileName;
+                link.href = canvas.toDataURL('image/jpeg', 0.95);
+                link.click();
+              }
+            }
+          }
+        }, 'image/jpeg', 0.95);
+      };
+
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          showToast('ระบบวาดภาพขัดข้อง', 'error');
+          return;
+        }
+
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+
+        // Apply filters on context
+        if (preset && preset.id !== 'original') {
+          if (preset.id === 'warm-sunset') {
+            ctx.filter = 'sepia(0.25) saturate(1.25) hue-rotate(-8deg) brightness(1.03)';
+          } else if (preset.id === 'nordic-cool') {
+            ctx.filter = 'saturate(0.8) contrast(1.05) brightness(1.02) hue-rotate(5deg)';
+          } else if (preset.id === 'cinematic') {
+            ctx.filter = 'contrast(1.15) saturate(0.9) brightness(0.95) sepia(0.08)';
+          } else if (preset.id === 'creamy-dream') {
+            ctx.filter = 'sepia(0.12) contrast(0.92) brightness(1.08) saturate(1.1)';
+          } else if (preset.id === 'vibrant-luxury') {
+            ctx.filter = 'saturate(1.35) contrast(1.1) brightness(1.04)';
+          } else if (preset.id === 'vintage-soft') {
+            ctx.filter = 'sepia(0.35) contrast(0.88) brightness(1.04) saturate(0.85)';
+          } else if (preset.id === 'modern-slate') {
+            ctx.filter = 'contrast(1.25) saturate(0.75) brightness(0.94)';
+          } else if (preset.id === 'bright-minimal') {
+            ctx.filter = 'brightness(1.12) contrast(0.95) saturate(0.92)';
+          }
+        }
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        attemptShare(canvas);
+      };
+
+      img.onerror = async () => {
+        // Direct sharing if canvas rendering fails (e.g., CORS check)
+        try {
+          const response = await fetch(photo.url);
+          const blob = await response.blob();
+          const fileName = `curtain_${photo.villageName.replace(/\s+/g, '_')}_${photo.id}.jpg`;
+          const file = new File([blob], fileName, { type: 'image/jpeg' });
+          if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: `ผลงานติดตั้งม่าน PASAYA`,
+              text: `ผลงานติดตั้งผ้าม่านจาก PASAYA ณ โครงการ ${photo.villageName}`
+            });
+            showToast('แชร์รูปภาพสำเร็จ', 'success');
+          } else if (navigator.share) {
+            await navigator.share({
+              title: `ผลงานติดตั้งม่าน PASAYA - ${photo.villageName}`,
+              text: `ผลงานติดตั้งผ้าม่านจาก PASAYA ณ โครงการ ${photo.villageName}`,
+              url: photo.url
+            });
+            showToast('แชร์ลิงก์รูปภาพสำเร็จ', 'success');
+          } else {
+            await navigator.clipboard.writeText(photo.url);
+            showToast('คัดลอกลิงก์รูปภาพไปยังคลิปบอร์ดแล้ว', 'info');
+          }
+        } catch (err: any) {
+          console.error(err);
+          showToast('ไม่สามารถแชร์รูปภาพได้', 'error');
+        }
+      };
+    } catch (err) {
+      console.error(err);
+      showToast('เกิดข้อผิดพลาดในการแชร์', 'error');
+    }
+  };
+
   return (
     <div 
       id="app-root-container" 
@@ -472,6 +609,7 @@ export default function App() {
                     onOpenLightbox={setSelectedPhoto}
                     activeUser={activeUser}
                     onEditPhoto={setEditingPhoto}
+                    onSharePhoto={triggerImageShare}
                   />
                 </motion.div>
               )}
@@ -509,6 +647,7 @@ export default function App() {
                     title="ผลงานติดตั้งผ้าม่านที่คุณถูกใจ"
                     isFavoriteOnly={true}
                     onEditPhoto={setEditingPhoto}
+                    onSharePhoto={triggerImageShare}
                   />
                 </motion.div>
               )}
@@ -555,6 +694,7 @@ export default function App() {
             onSelectPhoto={setSelectedPhoto}
             onToggleLike={handleToggleLike}
             triggerImageDownload={triggerImageDownload}
+            triggerImageShare={triggerImageShare}
           />
 
           {/* User Account Switch Login Dialog Overlay */}

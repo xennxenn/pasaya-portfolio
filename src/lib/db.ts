@@ -544,7 +544,7 @@ export async function updateBatchPhotos(ids: string[], updatedFields: Partial<Sa
 
 // Activity Logging functions
 export async function saveUserLog(
-  action: 'upload' | 'delete' | 'like' | 'unlike' | 'admin_config_update',
+  action: 'upload' | 'delete' | 'like' | 'unlike' | 'admin_config_update' | 'share',
   employeeName: string,
   details: string
 ): Promise<void> {
