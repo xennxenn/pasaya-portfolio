@@ -21,7 +21,8 @@ import {
   ShieldAlert,
   Upload,
   Heart,
-  Tag
+  Tag,
+  Folder
 } from 'lucide-react';
 import { MasterDataConfigs, SavedPhotoItem, EmployeeUser } from '../types';
 import { getMasterData, saveMasterData, saveUserLog, deletePhoto, compressImage } from '../lib/db';
@@ -1137,7 +1138,51 @@ export default function AdminPage({ photos, onPhotosUpdated, showToast, activeUs
                           )}
 
                           {!isEditingThis && (
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-2">
+                              {activeConfigCategory === 'curtainStyles' && (
+                                <div className="flex items-center gap-1 bg-slate-150 p-1 rounded-xl mr-2">
+                                  <button
+                                    onClick={async () => {
+                                      const currentConfigs = { ...configs };
+                                      if (!currentConfigs.curtainStyleConfigs) {
+                                        currentConfigs.curtainStyleConfigs = {};
+                                      }
+                                      currentConfigs.curtainStyleConfigs[item] = 'preset';
+                                      setConfigs(currentConfigs);
+                                      await saveMasterData(currentConfigs);
+                                      await saveUserLog('admin_config_update', activeUser?.name || 'ผู้ดูแลระบบ', `ตั้งค่าให้ "${item}" ใช้ข้อมูลระบบ`);
+                                      showToast(`ตั้งค่าให้ "${item}" ใช้ข้อมูลระบบ`, 'success');
+                                    }}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                      (configs.curtainStyleConfigs?.[item] || 'preset') === 'preset'
+                                        ? 'bg-indigo-600 text-white shadow-sm font-black'
+                                        : 'text-slate-500 hover:text-slate-800'
+                                    }`}
+                                  >
+                                    ข้อมูลระบบ
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      const currentConfigs = { ...configs };
+                                      if (!currentConfigs.curtainStyleConfigs) {
+                                        currentConfigs.curtainStyleConfigs = {};
+                                      }
+                                      currentConfigs.curtainStyleConfigs[item] = 'custom';
+                                      setConfigs(currentConfigs);
+                                      await saveMasterData(currentConfigs);
+                                      await saveUserLog('admin_config_update', activeUser?.name || 'ผู้ดูแลระบบ', `ตั้งค่าให้ "${item}" สามารถพิมพ์เองได้`);
+                                      showToast(`ตั้งค่าให้ "${item}" สามารถพิมพ์เองได้`, 'success');
+                                    }}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                      configs.curtainStyleConfigs?.[item] === 'custom'
+                                        ? 'bg-indigo-600 text-white shadow-sm font-black'
+                                        : 'text-slate-500 hover:text-slate-800'
+                                    }`}
+                                  >
+                                    พิมพ์เองได้
+                                  </button>
+                                </div>
+                              )}
                               <button
                                 onClick={() => {
                                   setEditingIndex(index);
@@ -1406,74 +1451,108 @@ export default function AdminPage({ photos, onPhotosUpdated, showToast, activeUs
                 )}
               </div>
             ) : (
-              /* By Employee Report with expanded details */
-              <div className="space-y-3">
-                {(configs?.employeeAccounts || []).map(employee => {
-                  const employeeLikes = photos.filter(p => p.likedBy && p.likedBy.includes(employee.id || employee.username));
-                  const isExpanded = expandedEmployeeId === employee.id;
+              /* By Employee Stats & Engagement Report */
+              <div className="space-y-4">
+                {(() => {
+                  const accounts = configs?.employeeAccounts || [];
+                  const photoEmployees = Array.from(new Set(photos.map(p => p.employee || '').filter(Boolean)));
+                  const allEmployeeNames = [...accounts.map(a => a.name)];
+                  photoEmployees.forEach(emp => {
+                    if (!allEmployeeNames.includes(emp)) {
+                      allEmployeeNames.push(emp);
+                    }
+                  });
 
-                  return (
-                    <div key={employee.id} className="border border-slate-150 rounded-2xl bg-white overflow-hidden shadow-sm">
-                      <div 
-                        onClick={() => setExpandedEmployeeId(isExpanded ? null : employee.id)}
-                        className="p-4 flex items-center justify-between cursor-pointer hover:bg-indigo-50/10 transition-colors select-none"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 text-sm font-black uppercase">
-                            {employee.name[0]}
-                          </div>
-                          <div>
-                            <h4 className="text-xs font-black text-slate-900">{employee.name}</h4>
-                            <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Username: {employee.username} | สิทธิ์: {employee.role}</p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-3">
-                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-rose-50 text-rose-600 border border-rose-100 text-[10px] font-black">
-                            <Heart size={10} className="fill-rose-500 text-rose-500" />
-                            {employeeLikes.length} ไกลก์
-                          </span>
-                          <ChevronRight 
-                            size={16} 
-                            className={`text-slate-400 transition-transform duration-300 ${isExpanded ? 'rotate-90 text-indigo-600' : ''}`} 
-                          />
-                        </div>
-                      </div>
+                  return allEmployeeNames.map(empName => {
+                    const empAccount = accounts.find(a => a.name === empName);
+                    const empPhotos = photos.filter(p => p.employee === empName);
+                    const uniqueFolders = Array.from(new Set(empPhotos.map(p => p.villageName || '').filter(Boolean)));
+                    const likesReceived = empPhotos.reduce((acc, p) => acc + (p.likedBy?.length || 0), 0);
+                    const isExpanded = expandedEmployeeId === empName;
 
-                      {/* Expanded employee liked photos */}
-                      {isExpanded && (
-                        <div className="px-4 pb-4 pt-1 bg-slate-50/30 border-t border-slate-100">
-                          {employeeLikes.length === 0 ? (
-                            <div className="py-6 text-center text-[10px] font-bold text-slate-400">
-                              พนักงานคนนี้ยังไม่ได้กดถูกใจผลงานภาพใดๆ ในระบบ
+                    return (
+                      <div key={empName} className="border border-slate-150 rounded-2xl bg-white overflow-hidden shadow-sm">
+                        <div 
+                          onClick={() => setExpandedEmployeeId(isExpanded ? null : empName)}
+                          className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer hover:bg-slate-50/50 transition-all select-none"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 text-sm font-black uppercase">
+                              {empName[0]}
                             </div>
-                          ) : (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mt-3">
-                              {employeeLikes.map(photo => (
-                                <div key={photo.id} className="bg-white border border-slate-100 rounded-xl overflow-hidden flex flex-col shadow-sm">
-                                  <div className="aspect-[4/3] bg-slate-100 relative">
-                                    <img 
-                                      src={photo.url} 
-                                      alt={photo.villageName} 
-                                      className="w-full h-full object-cover" 
-                                      referrerPolicy="no-referrer"
-                                    />
-                                  </div>
-                                  <div className="p-2 flex-1 flex flex-col justify-between">
-                                    <div>
-                                      <div className="text-[10px] font-black text-slate-800 truncate leading-tight">{photo.villageName}</div>
-                                      <div className="text-[8px] text-slate-400 font-semibold truncate mt-0.5">{photo.curtainStyle}</div>
+                            <div>
+                              <h4 className="text-sm font-black text-slate-900">{empName}</h4>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">
+                                {empAccount ? `Username: ${empAccount.username} | สิทธิ์: ${empAccount.role}` : 'บัญชีภายนอกหรือระบบ'}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {/* Bento Badges Summary */}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 text-[10px] font-black">
+                              <ImageIcon size={11} />
+                              {empPhotos.length} รูปภาพ
+                            </span>
+                            <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100 text-[10px] font-black">
+                              <Folder size={11} />
+                              {uniqueFolders.length} โฟลเดอร์
+                            </span>
+                            <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-rose-50 text-rose-600 border border-rose-100 text-[10px] font-black">
+                              <Heart size={11} className="fill-rose-500 text-rose-500" />
+                              {likesReceived} ไกลก์ได้รับ
+                            </span>
+                            <ChevronRight 
+                              size={16} 
+                              className={`text-slate-400 transition-transform duration-300 ml-2 ${isExpanded ? 'rotate-90 text-indigo-600' : ''}`} 
+                            />
+                          </div>
+                        </div>
+
+                        {/* Expanded details: List of uploaded photos */}
+                        {isExpanded && (
+                          <div className="px-5 pb-5 pt-2 bg-slate-50/40 border-t border-slate-100">
+                            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">รายการผลงานที่พนักงานคนนี้อัปโหลด ({empPhotos.length} รูป)</h5>
+                            {empPhotos.length === 0 ? (
+                              <div className="py-8 text-center text-xs font-bold text-slate-400">
+                                พนักงานคนนี้ยังไม่มีผลงานอัปโหลดในระบบ
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                {empPhotos.map(photo => {
+                                  const photoLikes = photo.likedBy?.length || 0;
+                                  return (
+                                    <div key={photo.id} className="bg-white border border-slate-100 rounded-2xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow">
+                                      <div className="aspect-[4/3] bg-slate-100 relative">
+                                        <img 
+                                          src={photo.url} 
+                                          alt={photo.villageName} 
+                                          className="w-full h-full object-cover" 
+                                          referrerPolicy="no-referrer"
+                                        />
+                                        <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[9px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm flex items-center gap-1">
+                                          <Heart size={9} className="fill-rose-500 text-rose-500" />
+                                          {photoLikes}
+                                        </div>
+                                      </div>
+                                      <div className="p-3 flex-1 flex flex-col justify-between">
+                                        <div>
+                                          <div className="text-xs font-black text-slate-800 truncate leading-tight">{photo.villageName}</div>
+                                          <div className="text-[9px] text-slate-400 font-bold truncate mt-1">{photo.developer}</div>
+                                          <div className="text-[9px] text-indigo-600 font-semibold truncate mt-0.5">{photo.curtainStyle}</div>
+                                        </div>
+                                      </div>
                                     </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             )}
 

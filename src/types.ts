@@ -45,6 +45,7 @@ export interface UserLog {
 
 export interface MasterDataConfigs {
   curtainStyles: string[];
+  curtainStyleConfigs?: { [styleName: string]: 'preset' | 'custom' };
   hashtags: string[];
   houseTypes: string[];
   employees: string[];

@@ -40,6 +40,7 @@ const DEFAULT_ADMIN_USER: EmployeeUser = {
 export default function App() {
   const [dbReady, setDbReady] = useState(false);
   const [photos, setPhotos] = useState<SavedPhotoItem[]>([]);
+  const [configs, setConfigs] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'showcase' | 'upload' | 'favorites' | 'admin' | 'logs'>(() => {
     const savedTab = localStorage.getItem('pasaya_active_tab');
     return (savedTab as any) || 'showcase';
@@ -94,6 +95,7 @@ export default function App() {
         // Fetch master config to get/sync any custom uploaded logo
         try {
           const masterData = await getMasterData();
+          setConfigs(masterData);
           if (masterData && masterData.logoUrl) {
             localStorage.setItem('pasaya_app_logo_url', masterData.logoUrl);
           } else {
@@ -594,95 +596,113 @@ export default function App() {
           {/* Main App Stage with padding-top and padding-bottom clearance on mobile */}
           <main className="flex-1 min-w-0 px-4 pt-20 pb-20 md:py-8 md:px-8 lg:px-10 z-10">
             <AnimatePresence mode="wait">
-              {activeTab === 'showcase' && (
-                <motion.div
-                  key="showcase"
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  transition={{ duration: 0.35, ease: 'easeOut' }}
-                >
-                  <PortfolioPage
-                    photos={photos}
-                    onToggleLike={handleToggleLike}
-                    onDeletePhoto={handleDeletePhoto}
-                    onOpenLightbox={setSelectedPhoto}
-                    activeUser={activeUser}
-                    onEditPhoto={setEditingPhoto}
-                    onSharePhoto={triggerImageShare}
-                  />
-                </motion.div>
-              )}
-
-              {activeTab === 'upload' && activeUser && activeUser.role !== 'visitor' && (
-                <motion.div
-                  key="upload"
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  transition={{ duration: 0.35, ease: 'easeOut' }}
-                >
-                  <UploadPage 
-                    onUploadStart={handleUploadStart} 
-                    activeEmployee={activeUser.name} 
-                    allPhotos={photos}
-                  />
-                </motion.div>
-              )}
-
-              {activeTab === 'favorites' && (
-                <motion.div
-                  key="favorites"
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  transition={{ duration: 0.35, ease: 'easeOut' }}
-                >
-                  <PortfolioPage
-                    photos={photos}
-                    onToggleLike={handleToggleLike}
-                    onDeletePhoto={handleDeletePhoto}
-                    onOpenLightbox={setSelectedPhoto}
-                    activeUser={activeUser}
-                    title="ผลงานติดตั้งผ้าม่านที่คุณถูกใจ"
-                    isFavoriteOnly={true}
-                    onEditPhoto={setEditingPhoto}
-                    onSharePhoto={triggerImageShare}
-                  />
-                </motion.div>
-              )}
-
-              {activeTab === 'admin' && activeUser && activeUser.role === 'admin' && (
-                <motion.div
-                  key="admin"
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  transition={{ duration: 0.35, ease: 'easeOut' }}
-                >
-                  <AdminPage
-                    photos={photos}
-                    onPhotosUpdated={async () => {
-                      const updatedPhotos = await getAllPhotos();
-                      setPhotos(updatedPhotos);
-                    }}
-                    showToast={showToast}
-                    activeUser={activeUser}
-                  />
-                </motion.div>
-              )}
-
-              {activeTab === 'logs' && activeUser && activeUser.role === 'admin' && (
-                <motion.div
-                  key="logs"
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  transition={{ duration: 0.35, ease: 'easeOut' }}
-                >
-                  <LogsPage showToast={showToast} />
-                </motion.div>
-              )}
+              {(() => {
+                switch (activeTab) {
+                  case 'showcase':
+                    return (
+                      <motion.div
+                        key="showcase"
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -15 }}
+                        transition={{ duration: 0.35, ease: 'easeOut' }}
+                      >
+                        <PortfolioPage
+                          photos={photos}
+                          configs={configs}
+                          onToggleLike={handleToggleLike}
+                          onDeletePhoto={handleDeletePhoto}
+                          onOpenLightbox={setSelectedPhoto}
+                          activeUser={activeUser}
+                          onEditPhoto={setEditingPhoto}
+                          onSharePhoto={triggerImageShare}
+                        />
+                      </motion.div>
+                    );
+                  case 'upload':
+                    if (activeUser && activeUser.role !== 'visitor') {
+                      return (
+                        <motion.div
+                          key="upload"
+                          initial={{ opacity: 0, y: 15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -15 }}
+                          transition={{ duration: 0.35, ease: 'easeOut' }}
+                        >
+                          <UploadPage 
+                            onUploadStart={handleUploadStart} 
+                            activeEmployee={activeUser.name} 
+                            allPhotos={photos}
+                          />
+                        </motion.div>
+                      );
+                    }
+                    return null;
+                  case 'favorites':
+                    return (
+                      <motion.div
+                        key="favorites"
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -15 }}
+                        transition={{ duration: 0.35, ease: 'easeOut' }}
+                      >
+                        <PortfolioPage
+                          photos={photos}
+                          configs={configs}
+                          onToggleLike={handleToggleLike}
+                          onDeletePhoto={handleDeletePhoto}
+                          onOpenLightbox={setSelectedPhoto}
+                          activeUser={activeUser}
+                          title="ผลงานติดตั้งผ้าม่านที่คุณถูกใจ"
+                          isFavoriteOnly={true}
+                          onEditPhoto={setEditingPhoto}
+                          onSharePhoto={triggerImageShare}
+                        />
+                      </motion.div>
+                    );
+                  case 'admin':
+                    if (activeUser && activeUser.role === 'admin') {
+                      return (
+                        <motion.div
+                          key="admin"
+                          initial={{ opacity: 0, y: 15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -15 }}
+                          transition={{ duration: 0.35, ease: 'easeOut' }}
+                        >
+                          <AdminPage
+                            photos={photos}
+                            onPhotosUpdated={async () => {
+                              const updatedPhotos = await getAllPhotos();
+                              setPhotos(updatedPhotos);
+                            }}
+                            showToast={showToast}
+                            activeUser={activeUser}
+                          />
+                        </motion.div>
+                      );
+                    }
+                    return null;
+                  case 'logs':
+                    if (activeUser && activeUser.role === 'admin') {
+                      return (
+                        <motion.div
+                          key="logs"
+                          initial={{ opacity: 0, y: 15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -15 }}
+                          transition={{ duration: 0.35, ease: 'easeOut' }}
+                        >
+                          <LogsPage showToast={showToast} />
+                        </motion.div>
+                      );
+                    }
+                    return null;
+                  default:
+                    return null;
+                }
+              })()}
             </AnimatePresence>
           </main>
 

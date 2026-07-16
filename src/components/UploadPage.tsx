@@ -99,6 +99,7 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
   // Shared metadata states for the upload batch (Applying "อัปโหลดพร้อมกันข้อมูลใช้ข้อมูลเดียวกันในการอัปโหลด")
   const [commonCurtainTypes, setCommonCurtainTypes] = useState<string[]>(['ผ้าม่านทึบ']);
   const [commonCurtainStyles, setCommonCurtainStyles] = useState<string[]>([]);
+  const [customStyleValues, setCustomStyleValues] = useState<{ [style: string]: string }>({});
   const [commonHashtags, setCommonHashtags] = useState<string[]>([]);
   const [commonFabricDetails, setCommonFabricDetails] = useState<FabricItem[]>([]);
   const [commonPresetId, setCommonPresetId] = useState('original');
@@ -114,23 +115,27 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
   }, [newFabricName, configs?.fabrics]);
 
   const isFreeTextAllowed = React.useMemo(() => {
-    return commonCurtainStyles.some(s => s.includes('มู่ลี่') || s.includes('ม่านม้วน'));
-  }, [commonCurtainStyles]);
+    return commonCurtainStyles.some(s => {
+      if (s.includes('มู่ลี่') || s.includes('ม่านม้วน') || s.includes('ม่านปรับแสง')) return true;
+      const isCustomMode = configs?.curtainStyleConfigs?.[s] === 'custom';
+      return isCustomMode;
+    });
+  }, [commonCurtainStyles, configs?.curtainStyleConfigs]);
 
-  // Compute developer sorted list (First: ยังไม่กำหนด, Second: บ้านสร้างแทน, Third onwards: sorted A-Z)
+  // Compute developer sorted list (First: ยังไม่กำหนด, Second: บ้านสร้างเอง, Third onwards: sorted A-Z)
   const sortedDevelopers = React.useMemo(() => {
     if (!configs?.developers) return [];
     
     // Filter out standard ones to place them on top
     const cleanList = configs.developers.filter(
-      d => d !== 'ยังไม่กำหนด' && d !== 'บ้านสร้างเอง' && d !== 'บ้านสร้างแทน'
+      d => d !== 'ยังไม่กำหนด' && d !== 'บ้านสร้างเอง'
     );
     
     // Sort the clean list alphabetically (Thai-aware)
     const sorted = [...cleanList].sort((a, b) => a.localeCompare(b, 'th'));
     
-    // Reassemble: 1. ยังไม่กำหนด, 2. บ้านสร้างแทน, 3. sorted list
-    return ['ยังไม่กำหนด', 'บ้านสร้างแทน', ...sorted];
+    // Reassemble: 1. ยังไม่กำหนด, 2. บ้านสร้างเอง, 3. sorted list
+    return ['ยังไม่กำหนด', 'บ้านสร้างเอง', ...sorted];
   }, [configs?.developers]);
 
   // Load master data configuration dynamically on start
@@ -274,8 +279,6 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
     const formattedName = formatFabricName(newFabricName);
     const formattedColor = formatFabricColor(newFabricColor);
 
-    // Enforce dropdown constraint if NOT "มู่ลี่" or "ม่านม้วน"
-    const isFreeTextAllowed = commonCurtainStyles.some(s => s.includes('มู่ลี่') || s.includes('ม่านม้วน'));
     const isExistingFabric = configs?.fabrics?.some(f => f.trim().toUpperCase() === formattedName.toUpperCase()) || false;
 
     if (!isFreeTextAllowed && !isExistingFabric) {
@@ -355,8 +358,17 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
       return;
     }
 
+    // Map selected styles to custom typed values if configured as custom-typed and entered
+    const finalStyles = commonCurtainStyles.map(style => {
+      const isCustomMode = configs?.curtainStyleConfigs?.[style] === 'custom';
+      if (isCustomMode && customStyleValues[style]?.trim()) {
+        return customStyleValues[style].trim();
+      }
+      return style;
+    });
+
     // Join multiple selected styles with a comma (fits DB schema and works natively with filtering via includes)
-    const joinedStyle = commonCurtainStyles.join(', ');
+    const joinedStyle = finalStyles.join(', ');
 
     // Transform temporary upload items into proper SavedPhotoItems using the same batch metadata
     const uploadPhotos: Omit<SavedPhotoItem, 'id' | 'uploadedAt'>[] = photos.map(p => ({
@@ -425,7 +437,7 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
         <div className="lg:col-span-7 space-y-6">
           
           {/* General Information Card */}
-          <div className="bg-white/50 backdrop-blur-xl border border-white/40 rounded-[32px] p-6 shadow-xl space-y-4">
+          <div className={`bg-white/50 backdrop-blur-xl border border-white/40 rounded-[32px] p-6 shadow-xl space-y-4 relative transition-all duration-200 ${projectMode === 'existing' && showSuggestions ? 'z-[9999] shadow-2xl' : 'z-20'}`}>
             <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
               <span className="w-1.5 h-4 bg-emerald-500 rounded-full" />
               1. ข้อมูลสถานที่และผู้ดูแลติดตั้ง
@@ -473,7 +485,7 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
               {/* Village Input with conditional dropdown based on projectMode */}
-              <div className="md:col-span-2 relative">
+              <div className={`md:col-span-2 relative ${projectMode === 'existing' && showSuggestions ? 'z-[9999]' : 'z-10'}`}>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   ชื่อโครงการ / หมู่บ้าน / คอนโด * {projectMode === 'new' ? '(พิมพ์ชื่อโครงการใหม่)' : '(ค้นหาโครงการเดิม)'}
                 </label>
@@ -517,10 +529,10 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
                 {projectMode === 'existing' && showSuggestions && (
                   <>
                     <div 
-                      className="fixed inset-0 z-10" 
+                      className="fixed inset-0 z-[9997]" 
                       onClick={() => setShowSuggestions(false)} 
                     />
-                    <div className="absolute left-0 right-0 mt-1.5 bg-white border border-slate-200/80 rounded-2xl shadow-xl z-20 max-h-60 overflow-y-auto divide-y divide-slate-100 py-1 select-none animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="absolute left-0 right-0 mt-1.5 bg-white border border-slate-200/80 rounded-2xl shadow-xl z-[9998] max-h-60 overflow-y-auto divide-y divide-slate-100 py-1 select-none animate-in fade-in slide-in-from-top-2 duration-200">
                       {filteredVillages.length === 0 ? (
                         <div className="p-4 text-center text-slate-400 text-xs font-bold">
                           ไม่พบโครงการที่ใกล้เคียง คุณสามารถเปลี่ยนไปที่โหมด "สร้างโฟลเดอร์โครงการใหม่" ได้
@@ -573,7 +585,7 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
                 </div>
               </div>
 
-              {/* Custom Developer Dropdown (First: ยังไม่กำหนด, Second: บ้านสร้างแทน, rest alphabet sorted) */}
+              {/* Custom Developer Dropdown (First: ยังไม่กำหนด, Second: บ้านสร้างเอง, rest alphabet sorted) */}
               <div className="relative">
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">ผู้พัฒนาโครงการ (Developer) *</label>
                 <div className="relative">
@@ -595,7 +607,7 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
           </div>
 
           {/* Media uploader Area */}
-          <div className="bg-white/50 backdrop-blur-xl border border-white/40 rounded-[32px] p-6 shadow-xl space-y-4">
+          <div className="bg-white/50 backdrop-blur-xl border border-white/40 rounded-[32px] p-6 shadow-xl space-y-4 relative z-10">
             <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
               <span className="w-1.5 h-4 bg-emerald-500 rounded-full" />
               2. เลือกรูปภาพผลงานติดตั้ง (รองรับไฟล์รูปภาพทั้งหมด รวมถึง HEIC/HEIF จาก iPhone)
@@ -740,7 +752,7 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
                             {isFreeTextAllowed ? (
                               <span className="block text-emerald-500 mt-1">สามารถพิมพ์ระบุชื่อผ้าอิสระได้</span>
                             ) : (
-                              <span className="block text-amber-500 mt-1">ต้องเลือกจากระบบ (ม่านม้วน/มู่ลี่ เท่านั้นที่พิมพ์เองได้)</span>
+                              <span className="block text-amber-500 mt-1">ต้องเลือกจากระบบ (มู่ลี่/ม่านม้วน/ม่านปรับแสง หรือรูปแบบที่ตั้งค่าให้พิมพ์เองได้ เท่านั้นที่พิมพ์เองได้)</span>
                             )}
                           </div>
                         ) : (
@@ -792,7 +804,7 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
                   {isFreeTextAllowed ? '✨ สามารถพิมพ์ชื่อผ้าเองได้อิสระ' : '🔒 ต้องเลือกชื่อผ้าที่มีในระบบ'}
                 </span>
                 <span className="text-[9px] text-slate-400 font-medium">
-                  * มู่ลี่, ม่านม้วน พิมพ์เองได้ ที่เหลือต้องเลือกจาก dropdown
+                  * มู่ลี่, ม่านม้วน, ม่านปรับแสง และรูปแบบที่พิมพ์เองได้ ระบุชื่อผ้าได้อิสระ
                 </span>
               </div>
             </div>
@@ -859,6 +871,35 @@ export default function UploadPage({ onUploadStart, activeEmployee, allPhotos }:
                   );
                 })}
               </div>
+
+              {/* Real-time custom-typed input fields if configured as custom */}
+              {configs?.curtainStyles.map((style) => {
+                const isChecked = commonCurtainStyles.includes(style);
+                const isCustomMode = configs?.curtainStyleConfigs?.[style] === 'custom';
+                if (isChecked && isCustomMode) {
+                  return (
+                    <div key={`custom-input-${style}`} className="mt-2.5 p-3.5 bg-indigo-50/40 border-2 border-indigo-100 rounded-2xl animate-in fade-in slide-in-from-top-1 duration-200">
+                      <label className="block text-[11px] font-black text-indigo-700 uppercase tracking-wider mb-1.5">
+                        ระบุรายละเอียดสำหรับ "{style}" * (พิมพ์เองได้)
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={customStyleValues[style] || ''}
+                        onChange={(e) => {
+                          setCustomStyleValues(prev => ({
+                            ...prev,
+                            [style]: e.target.value
+                          }));
+                        }}
+                        placeholder="ระบุชื่อรุ่น/รูปแบบทรง หรือสเปกที่พิมพ์ออกแบบตามต้องการ..."
+                        className="w-full h-11 px-3.5 rounded-xl border border-indigo-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-xs font-bold text-slate-800 shadow-sm"
+                      />
+                    </div>
+                  );
+                }
+                return null;
+              })}
             </div>
 
             {/* Section 4.4: Hashtags */}

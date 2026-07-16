@@ -55,6 +55,7 @@ export default function EditPhotoModal({
   const [houseType, setHouseType] = useState('');
   const [customHouseType, setCustomHouseType] = useState('');
   const [curtainStyles, setCurtainStyles] = useState<string[]>([]);
+  const [customStyleValues, setCustomStyleValues] = useState<{ [style: string]: string }>({});
   const [curtainTypes, setCurtainTypes] = useState<string[]>([]);
   const [fabrics, setFabrics] = useState<FabricItem[]>([]);
   const [hashtags, setHashtags] = useState<string[]>([]);
@@ -77,14 +78,14 @@ export default function EditPhotoModal({
     });
   }, [photo, allPhotos]);
 
-  // Compute developer sorted list (First: ยังไม่กำหนด, Second: บ้านสร้างแทน, Third onwards: sorted A-Z)
+  // Compute developer sorted list (First: ยังไม่กำหนด, Second: บ้านสร้างเอง, Third onwards: sorted A-Z)
   const sortedDevelopers = React.useMemo(() => {
     if (!configs?.developers) return [];
     const cleanList = configs.developers.filter(
-      d => d !== 'ยังไม่กำหนด' && d !== 'บ้านสร้างเอง' && d !== 'บ้านสร้างแทน'
+      d => d !== 'ยังไม่กำหนด' && d !== 'บ้านสร้างเอง'
     );
     const sorted = [...cleanList].sort((a, b) => a.localeCompare(b, 'th'));
-    return ['ยังไม่กำหนด', 'บ้านสร้างแทน', ...sorted];
+    return ['ยังไม่กำหนด', 'บ้านสร้างเอง', ...sorted];
   }, [configs?.developers]);
 
   // Load configuration configs
@@ -120,7 +121,52 @@ export default function EditPhotoModal({
     const styles = photo.curtainStyle 
       ? photo.curtainStyle.split(',').map(s => s.trim()).filter(Boolean)
       : [];
-    setCurtainStyles(styles);
+
+    const initialCustomValues: { [style: string]: string } = {};
+    const selectedStyleFlags: string[] = [];
+
+    if (configs?.curtainStyles) {
+      configs.curtainStyles.forEach(style => {
+        const isCustom = configs.curtainStyleConfigs?.[style] === 'custom';
+        if (isCustom) {
+          // Find any value in styles that matches style or starts with similar word
+          const customVal = styles.find(s => s === style || (!configs.curtainStyles.includes(s) && s.toLowerCase().includes(style.split(' ')[0].toLowerCase())));
+          if (customVal) {
+            initialCustomValues[style] = customVal;
+            selectedStyleFlags.push(style);
+          } else {
+            if (styles.includes(style)) {
+              initialCustomValues[style] = style;
+              selectedStyleFlags.push(style);
+            }
+          }
+        } else {
+          if (styles.includes(style)) {
+            selectedStyleFlags.push(style);
+          }
+        }
+      });
+      
+      // Add any leftover styles that are not in configs.curtainStyles
+      styles.forEach(s => {
+        if (!configs.curtainStyles.includes(s) && !selectedStyleFlags.some(flag => initialCustomValues[flag] === s)) {
+          const firstCustomStyle = configs.curtainStyles.find(cs => configs.curtainStyleConfigs?.[cs] === 'custom' && !initialCustomValues[cs]);
+          if (firstCustomStyle) {
+            initialCustomValues[firstCustomStyle] = s;
+            if (!selectedStyleFlags.includes(firstCustomStyle)) {
+              selectedStyleFlags.push(firstCustomStyle);
+            }
+          } else {
+            selectedStyleFlags.push(s);
+          }
+        }
+      });
+    } else {
+      selectedStyleFlags.push(...styles);
+    }
+
+    setCustomStyleValues(initialCustomValues);
+    setCurtainStyles(selectedStyleFlags);
 
     // Setup developer
     setDeveloper(photo.developer || 'ยังไม่กำหนด');
@@ -132,7 +178,7 @@ export default function EditPhotoModal({
 
     // Default edit mode
     setEditMode('single');
-  }, [photo, isOpen]);
+  }, [photo, isOpen, configs]);
 
   if (!isOpen || !photo) return null;
 
@@ -195,7 +241,11 @@ export default function EditPhotoModal({
     }
 
     // Validate each fabric based on selected styles
-    const isFreeTextAllowed = curtainStyles.some(s => s.includes('มู่ลี่') || s.includes('ม่านม้วน'));
+    const isFreeTextAllowed = curtainStyles.some(s => {
+      if (s.includes('มู่ลี่') || s.includes('ม่านม้วน') || s.includes('ม่านปรับแสง')) return true;
+      const isCustomMode = configs?.curtainStyleConfigs?.[s] === 'custom';
+      return isCustomMode;
+    });
     const masterFabricsUpper = (configs?.fabrics || []).map(f => f.trim().toUpperCase());
 
     if (!isFreeTextAllowed) {
@@ -235,11 +285,19 @@ export default function EditPhotoModal({
         return;
       }
 
+      const finalStyles = curtainStyles.map(style => {
+        const isCustomMode = configs?.curtainStyleConfigs?.[style] === 'custom';
+        if (isCustomMode && customStyleValues[style]?.trim()) {
+          return customStyleValues[style].trim();
+        }
+        return style;
+      });
+
       const updatedData: Partial<SavedPhotoItem> = {
         villageName: villageName.trim(),
         developer: finalDeveloper || 'ยังไม่กำหนด',
         houseType: finalHouseType || 'บ้านเดี่ยว (Single House)',
-        curtainStyle: curtainStyles.join(', '),
+        curtainStyle: finalStyles.join(', '),
         curtainTypes,
         fabricDetails: fabrics,
         hashtags,
@@ -483,6 +541,35 @@ export default function EditPhotoModal({
                     );
                   })}
                 </div>
+
+                {/* Custom text inputs for edit modal */}
+                {configs?.curtainStyles.map((style) => {
+                  const isChecked = curtainStyles.includes(style);
+                  const isCustomMode = configs?.curtainStyleConfigs?.[style] === 'custom';
+                  if (isChecked && isCustomMode) {
+                    return (
+                      <div key={`custom-edit-input-${style}`} className="p-3 bg-indigo-50/40 border border-indigo-150 rounded-xl space-y-1 mt-1.5 animate-in slide-in-from-top-1">
+                        <label className="block text-[10px] font-black text-indigo-700 uppercase tracking-wider">
+                          ระบุรายละเอียดสำหรับ "{style}" * (พิมพ์เองได้)
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={customStyleValues[style] || ''}
+                          onChange={(e) => {
+                            setCustomStyleValues(prev => ({
+                              ...prev,
+                              [style]: e.target.value
+                            }));
+                          }}
+                          placeholder="ระบุสเปก, ทรง หรือรายละเอียดพิเศษ..."
+                          className="w-full h-9 px-3 rounded-xl border border-indigo-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-xs font-bold text-slate-800"
+                        />
+                      </div>
+                    );
+                  }
+                  return null;
+                })}
               </div>
 
               {/* Curtain Types & Color Filter Preset */}
@@ -491,7 +578,7 @@ export default function EditPhotoModal({
                 <div className="space-y-2">
                   <label className="text-xs font-black text-slate-700 block">ประเภทผ้าติดตั้ง <span className="text-red-500">*</span></label>
                   <div className="flex gap-2.5">
-                    {['ผ้าม่านทึบแสง (Block-out)', 'ผ้าม่านโปร่งแสง (Sheer)'].map(type => {
+                    {['ผ้าม่านทึบ', 'ผ้าม่านโปร่ง'].map(type => {
                       const isSelected = curtainTypes.includes(type);
                       return (
                         <button
@@ -506,7 +593,7 @@ export default function EditPhotoModal({
                           `}
                         >
                           {isSelected && <Check size={14} />}
-                          <span>{type.includes('ทึบ') ? 'ผ้าทึบ (Block-out)' : 'ผ้าโปร่ง (Sheer)'}</span>
+                          <span>{type}</span>
                         </button>
                       );
                     })}
@@ -571,7 +658,11 @@ export default function EditPhotoModal({
                             <div className="absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-[9999] max-h-40 overflow-y-auto divide-y divide-slate-100 py-1 select-none">
                               {(() => {
                                 const filtered = getFilteredFabrics(fabric.name);
-                                const isFreeAllowed = curtainStyles.some(s => s.includes('มู่ลี่') || s.includes('ม่านม้วน'));
+                                const isFreeAllowed = curtainStyles.some(s => {
+                                  if (s.includes('มู่ลี่') || s.includes('ม่านม้วน') || s.includes('ม่านปรับแสง')) return true;
+                                  const isCustomMode = configs?.curtainStyleConfigs?.[s] === 'custom';
+                                  return isCustomMode;
+                                });
                                 if (filtered.length === 0) {
                                   return (
                                     <div className="p-2 text-center text-slate-400 text-[10px] font-bold">
@@ -630,7 +721,11 @@ export default function EditPhotoModal({
                 {/* Helpful Badge constraint indicator */}
                 <div className="flex items-center justify-between px-1">
                   {(() => {
-                    const isFreeAllowed = curtainStyles.some(s => s.includes('มู่ลี่') || s.includes('ม่านม้วน'));
+                    const isFreeAllowed = curtainStyles.some(s => {
+                      if (s.includes('มู่ลี่') || s.includes('ม่านม้วน') || s.includes('ม่านปรับแสง')) return true;
+                      const isCustomMode = configs?.curtainStyleConfigs?.[s] === 'custom';
+                      return isCustomMode;
+                    });
                     return (
                       <>
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${
@@ -641,7 +736,7 @@ export default function EditPhotoModal({
                           {isFreeAllowed ? '✨ สามารถพิมพ์ชื่อผ้าเองได้อิสระ' : '🔒 ต้องเลือกชื่อผ้าที่มีในระบบ'}
                         </span>
                         <span className="text-[9px] text-slate-400 font-medium">
-                          * มู่ลี่, ม่านม้วน พิมพ์เองได้ ที่เหลือต้องเลือกจาก dropdown
+                          * มู่ลี่, ม่านม้วน, ม่านปรับแสง และรูปแบบที่พิมพ์เองได้ ระบุชื่อผ้าได้อิสระ
                         </span>
                       </>
                     );

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
   Filter, 
@@ -21,10 +21,11 @@ import {
   Pencil,
   Share2
 } from 'lucide-react';
-import { SavedPhotoItem, COLOR_PRESETS, CURTAIN_STYLES, HASHTAG_PRESETS, HOUSE_TYPES, EmployeeUser } from '../types';
+import { SavedPhotoItem, COLOR_PRESETS, CURTAIN_STYLES, HASHTAG_PRESETS, HOUSE_TYPES, EmployeeUser, MasterDataConfigs } from '../types';
 
 interface PortfolioPageProps {
   photos: SavedPhotoItem[];
+  configs?: MasterDataConfigs | null;
   onToggleLike: (id: string) => void;
   onDeletePhoto: (id: string) => void;
   onOpenLightbox: (photo: SavedPhotoItem) => void;
@@ -37,6 +38,7 @@ interface PortfolioPageProps {
 
 export default function PortfolioPage({
   photos,
+  configs,
   onToggleLike,
   onDeletePhoto,
   onOpenLightbox,
@@ -48,16 +50,33 @@ export default function PortfolioPage({
 }: PortfolioPageProps) {
   // Navigation & Search States
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+
+  // Debounce search query update to eliminate typing lag
+  useEffect(() => {
+    const delayDebounce = setTimeout(() => {
+      setSearchQuery(searchInput);
+    }, 250);
+    return () => clearTimeout(delayDebounce);
+  }, [searchInput]);
   const [selectedHouseType, setSelectedHouseType] = useState<string>('all');
   const [selectedStyle, setSelectedStyle] = useState<string>('all');
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedHashtag, setSelectedHashtag] = useState<string>('all');
+  const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('date-desc');
   const [showFilters, setShowFilters] = useState(false);
 
   // View settings
   const [viewMode, setViewMode] = useState<'grid' | 'folder'>('grid'); // 'grid' (all) or 'folder' (grouped by fabric name+color)
   const [gridSize, setGridSize] = useState<'S' | 'M' | 'L'>('M'); // Small, Medium, Large
   const [openFolderKey, setOpenFolderKey] = useState<string | null>(null); // Id of the active opened folder
+
+  // Derive unique employees lists dynamically from photos
+  const employees = useMemo(() => {
+    const list = photos.map(p => p.employee || '').filter(Boolean);
+    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [photos]);
 
   // Filter items based on active states
   const filteredPhotos = useMemo(() => {
@@ -88,6 +107,11 @@ export default function PortfolioPage({
       result = result.filter(p => p.hashtags.includes(selectedHashtag));
     }
 
+    // Filter by employee
+    if (selectedEmployee !== 'all') {
+      result = result.filter(p => p.employee === selectedEmployee);
+    }
+
     // Filter by global search query (village, fabric name, color, style, tags)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -97,15 +121,37 @@ export default function PortfolioPage({
         const styleMatch = p.curtainStyle.toLowerCase().includes(q);
         const typeMatch = p.curtainTypes.some(t => t.toLowerCase().includes(q));
         const tagsMatch = p.hashtags.some(t => t.toLowerCase().includes(q));
-        const fabricMatch = p.fabricDetails.some(f => 
-          f.name.toLowerCase().includes(q) || f.color.toLowerCase().includes(q)
-        );
+        const fabricMatch = p.fabricDetails.some(f => {
+          const nameLower = f.name.toLowerCase();
+          const colorLower = f.color.toLowerCase();
+          const combined = `${nameLower}/${colorLower}`;
+          const combinedNoSpaces = combined.replace(/\s+/g, '');
+          const qNoSpaces = q.replace(/\s+/g, '');
+          return nameLower.includes(q) || colorLower.includes(q) || combined.includes(q) || combinedNoSpaces.includes(qNoSpaces);
+        });
         return villageMatch || devMatch || styleMatch || typeMatch || tagsMatch || fabricMatch;
       });
     }
 
     return result;
-  }, [photos, isFavoriteOnly, searchQuery, selectedHouseType, selectedStyle, selectedType, selectedHashtag]);
+  }, [photos, isFavoriteOnly, searchQuery, selectedHouseType, selectedStyle, selectedType, selectedHashtag, selectedEmployee]);
+
+  // Sort items based on selected sort options
+  const sortedPhotos = useMemo(() => {
+    const result = [...filteredPhotos];
+    if (sortBy === 'date-desc') {
+      result.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    } else if (sortBy === 'date-asc') {
+      result.sort((a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime());
+    } else if (sortBy === 'employee') {
+      result.sort((a, b) => (a.employee || '').localeCompare(b.employee || '', 'th'));
+    } else if (sortBy === 'curtain-type') {
+      result.sort((a, b) => (a.curtainTypes[0] || '').localeCompare(b.curtainTypes[0] || '', 'th'));
+    } else if (sortBy === 'fabric-name') {
+      result.sort((a, b) => (a.fabricDetails[0]?.name || '').localeCompare(b.fabricDetails[0]?.name || '', 'en'));
+    }
+    return result;
+  }, [filteredPhotos, sortBy]);
 
   // Persistent state for custom folder covers (Requirement 3: "เลือกรูปมาแสดงหน้าปกโฟลเดอร์ด้วย (กำหนดเองได้)")
   const [folderCovers, setFolderCovers] = useState<{ [village: string]: string }>(() => {
@@ -132,7 +178,7 @@ export default function PortfolioPage({
   const folders = useMemo(() => {
     const grouped: { [key: string]: { key: string; name: string; items: SavedPhotoItem[] } } = {};
 
-    filteredPhotos.forEach(p => {
+    sortedPhotos.forEach(p => {
       const key = p.villageName?.trim() || 'โครงการไม่ระบุชื่อ';
 
       if (!grouped[key]) {
@@ -146,7 +192,7 @@ export default function PortfolioPage({
     });
 
     return Object.values(grouped);
-  }, [filteredPhotos]);
+  }, [sortedPhotos]);
 
   // Export Canvas Image with color filter baked-in!
   const triggerImageDownload = async (photo: SavedPhotoItem, e?: React.MouseEvent) => {
@@ -243,12 +289,26 @@ export default function PortfolioPage({
     }
   }, [gridSize]);
 
+  // Folder view grid layout size configuration
+  const folderGridClass = useMemo(() => {
+    switch (gridSize) {
+      case 'S':
+        return 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3';
+      case 'L':
+        return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6';
+      case 'M':
+      default:
+        return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5';
+    }
+  }, [gridSize]);
+
   // Clean filters
   const resetFilters = () => {
     setSelectedHouseType('all');
     setSelectedStyle('all');
     setSelectedType('all');
     setSelectedHashtag('all');
+    setSearchInput('');
     setSearchQuery('');
   };
 
@@ -279,7 +339,7 @@ export default function PortfolioPage({
           <p className="text-sm text-slate-500 mt-1">
             {openFolderKey && activeFolder 
               ? `พบคอลเลกชันติดผ้าม่านในโครงการหมู่บ้านต่างๆ ทั้งหมด ${activeFolder.items.length} รูป` 
-              : `คลังภาพตัวอย่างติดตั้งผ้าม่านพรีเมียม ทั้งหมด ${filteredPhotos.length} รูป`
+              : `คลังภาพตัวอย่างติดตั้งผ้าม่านพรีเมียม ทั้งหมด ${sortedPhotos.length} รูป`
             }
           </p>
         </div>
@@ -319,50 +379,67 @@ export default function PortfolioPage({
           )}
 
           {/* Grid Sizing selector [S, M, L] */}
-          {(viewMode === 'grid' || openFolderKey) && (
-            <div className="flex bg-slate-200/50 p-1 rounded-xl border border-slate-200/20 shadow-inner select-none">
-              {(['S', 'M', 'L'] as const).map((size) => (
-                <button
-                  key={size}
-                  id={`grid-size-btn-${size}`}
-                  onClick={() => setGridSize(size)}
-                  className={`w-8 h-8 rounded-lg text-xs font-bold flex items-center justify-center transition-all cursor-pointer
-                    ${gridSize === size 
-                      ? 'bg-white text-indigo-600 shadow-sm' 
-                      : 'text-slate-500 hover:text-slate-900'
-                    }
-                  `}
-                >
-                  {size}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex bg-slate-200/50 p-1 rounded-xl border border-slate-200/20 shadow-inner select-none">
+            {(['S', 'M', 'L'] as const).map((size) => (
+              <button
+                key={size}
+                id={`grid-size-btn-${size}`}
+                onClick={() => setGridSize(size)}
+                className={`w-8 h-8 rounded-lg text-xs font-bold flex items-center justify-center transition-all cursor-pointer
+                  ${gridSize === size 
+                    ? 'bg-white text-indigo-600 shadow-sm' 
+                    : 'text-slate-500 hover:text-slate-900'
+                  }
+                `}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Global Search & Advanced Filters */}
       {!openFolderKey && (
         <div className="bg-white/50 backdrop-blur-xl border border-white/40 rounded-[32px] p-5 shadow-xl space-y-4">
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             {/* Search Input */}
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-3 text-slate-400" size={18} />
               <input
                 type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="ค้นหาหมู่บ้าน, แบรนด์ผ้า, สีผ้า, รูปแบบม่าน, แฮชแท็ก..."
                 className="w-full pl-11 pr-4 py-2.5 rounded-2xl border border-slate-200 bg-white/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm transition-all"
               />
-              {searchQuery && (
+              {searchInput && (
                 <button 
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    setSearchInput('');
+                    setSearchQuery('');
+                  }}
                   className="absolute right-3.5 top-2.5 text-[10px] bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-full text-slate-500 font-bold"
                 >
                   ล้างคำค้น
                 </button>
               )}
+            </div>
+
+            {/* Sort Dropdown */}
+            <div className="relative min-w-[130px]">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full pl-3 pr-8 py-2.5 rounded-2xl border border-slate-200 bg-white/50 text-xs font-bold focus:outline-none cursor-pointer appearance-none text-slate-700"
+              >
+                <option value="date-desc">ล่าสุด (Latest)</option>
+                <option value="date-asc">เก่าสุด (Oldest)</option>
+                <option value="employee">ตามพนักงาน</option>
+                <option value="curtain-type">ประเภทผ้าม่าน</option>
+                <option value="fabric-name">ชื่อผ้าม่าน</option>
+              </select>
+              <ChevronDown size={14} className="absolute right-2.5 top-3.5 text-slate-500 pointer-events-none" />
             </div>
 
             {/* Toggle Filters Button */}
@@ -377,7 +454,7 @@ export default function PortfolioPage({
             >
               <Filter size={16} />
               <span className="max-sm:hidden">ตัวกรองละเอียด</span>
-              {(selectedHouseType !== 'all' || selectedStyle !== 'all' || selectedType !== 'all' || selectedHashtag !== 'all') && (
+              {(selectedHouseType !== 'all' || selectedStyle !== 'all' || selectedType !== 'all' || selectedHashtag !== 'all' || selectedEmployee !== 'all') && (
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
               )}
             </button>
@@ -385,10 +462,10 @@ export default function PortfolioPage({
 
           {/* Expanded Filter Panel */}
           {showFilters && (
-            <div className="pt-3 border-t border-slate-200/50 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 select-none animate-fadeIn">
+            <div className="pt-3 border-t border-slate-200/50 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 select-none animate-fadeIn">
               {/* Category 1: House Type */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">ประเภทอสังหาฯ (บ้าน/คอนโด)</label>
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">ประเภทอสังหาฯ</label>
                 <div className="relative">
                   <select
                     value={selectedHouseType}
@@ -441,7 +518,7 @@ export default function PortfolioPage({
 
               {/* Category 4: Hashtags */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Hashtag ยอดนิยม</label>
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Hashtag</label>
                 <div className="relative">
                   <select
                     value={selectedHashtag}
@@ -449,8 +526,26 @@ export default function PortfolioPage({
                     className="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white/50 text-xs focus:outline-none cursor-pointer"
                   >
                     <option value="all">ทั้งหมด (All Tags)</option>
-                    {[...HASHTAG_PRESETS].sort((a, b) => a.localeCompare(b, 'th')).map(tag => (
-                      <option key={tag} value={tag}>{tag.split(' ')[0]}</option>
+                    {[...(configs?.hashtags || HASHTAG_PRESETS)].sort((a, b) => a.localeCompare(b, 'th')).map(tag => (
+                      <option key={tag} value={tag}>{tag}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} className="absolute right-2.5 top-2.5 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Category 5: Employees */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">พนักงานผู้รับผิดชอบ</label>
+                <div className="relative">
+                  <select
+                    value={selectedEmployee}
+                    onChange={(e) => setSelectedEmployee(e.target.value)}
+                    className="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white/50 text-xs focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">ทั้งหมด (All Staff)</option>
+                    {employees.map(emp => (
+                      <option key={emp} value={emp}>{emp}</option>
                     ))}
                   </select>
                   <ChevronDown size={14} className="absolute right-2.5 top-2.5 text-slate-400 pointer-events-none" />
@@ -458,7 +553,7 @@ export default function PortfolioPage({
               </div>
 
               {/* Reset Controls */}
-              <div className="sm:col-span-2 md:col-span-4 flex justify-end gap-2 pt-2">
+              <div className="sm:col-span-2 md:col-span-5 flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={resetFilters}
@@ -537,71 +632,80 @@ export default function PortfolioPage({
               <p className="text-xs text-slate-400 mt-1">กรุณาลองเปลี่ยนข้อมูลค้นหาใหม่</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 select-none">
+            <div className={`grid ${folderGridClass} select-none`}>
               {folders.map((folder) => {
                 // Determine cover photo (Requirement 3: "เลือกรูปมาแสดงหน้าปกโฟลเดอร์ด้วย (กำหนดเองได้)")
                 const customCoverId = folderCovers[folder.key];
                 const samplePhoto = folder.items.find(p => p.id === customCoverId) || folder.items[0];
                 const activePreset = samplePhoto ? COLOR_PRESETS.find(p => p.id === samplePhoto.presetId) : null;
+                const isS = gridSize === 'S';
+                const isL = gridSize === 'L';
                 
                 return (
                   <div
                     key={folder.key}
                     onClick={() => setOpenFolderKey(folder.key)}
-                    className="group bg-white/50 backdrop-blur-xl border border-white/40 rounded-[32px] p-4.5 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col relative"
+                    className={`group bg-white border border-slate-100/80 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col relative
+                      ${isS ? 'p-3 rounded-2xl shadow-md' : isL ? 'p-6 rounded-[36px]' : 'p-4.5 rounded-[32px]'}
+                    `}
                   >
                     {/* Apple Style Folder Stack Overlay */}
-                    <div className="relative aspect-[4/3] rounded-2xl overflow-hidden mb-4 bg-slate-100 flex items-center justify-center shadow-md">
+                    <div className={`relative aspect-[4/3] ${isS ? 'mb-2.5' : 'mb-4'}`}>
                       {/* Sub card 1 (Bottom stacked back) */}
                       <div className="absolute inset-x-2 -bottom-2 h-full bg-slate-300/40 rounded-2xl border border-slate-400/10 scale-95 origin-bottom translate-y-[-4px] shadow" />
                       {/* Sub card 2 (Middle stacked back) */}
                       <div className="absolute inset-x-1 -bottom-1 h-full bg-slate-200/70 rounded-2xl border border-slate-300/20 scale-98 origin-bottom translate-y-[-2px] shadow-sm" />
                       
-                      {/* Main Thumb Photo (Front) */}
-                      {samplePhoto ? (
-                        <img
-                          src={samplePhoto.url}
-                          alt={folder.name}
-                          className="w-full h-full object-cover rounded-2xl shadow transition-transform duration-500 group-hover:scale-105"
-                          style={{ filter: activePreset?.cssFilter || 'none' }}
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <Folder size={36} className="text-slate-300" />
-                      )}
+                      {/* Main Thumb Photo (Front) in its own z-10 overflow-hidden box */}
+                      <div className="absolute inset-0 rounded-2xl overflow-hidden bg-slate-100 flex items-center justify-center shadow-md border border-slate-200/20 z-10">
+                        {samplePhoto ? (
+                          <img
+                            src={samplePhoto.url}
+                            alt={folder.name}
+                            className="w-full h-full object-cover rounded-2xl transition-transform duration-500 group-hover:scale-105"
+                            style={{ filter: activePreset?.cssFilter || 'none' }}
+                            referrerPolicy="no-referrer"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <Folder size={isS ? 24 : 36} className="text-slate-300" />
+                        )}
 
-                      {/* Floating Badge photo count */}
-                      <div className="absolute top-3 right-3 bg-black/60 text-white text-[10px] font-bold px-2.5 py-1 rounded-full backdrop-blur">
-                        {folder.items.length} รูปภาพ
+                        {/* Floating Badge photo count */}
+                        <div className={`absolute bg-black/60 text-white font-bold rounded-full backdrop-blur z-20 ${isS ? 'top-2 right-2 px-1.5 py-0.5 text-[9px]' : 'top-3 right-3 px-2.5 py-1 text-[10px]'}`}>
+                          {folder.items.length} รูปภาพ
+                        </div>
                       </div>
                     </div>
 
                     {/* Folder details label */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">
-                        <Folder size={10} className="text-slate-400" />
-                        <span>โฟลเดอร์โครงการหมู่บ้าน</span>
-                      </div>
-                      <h4 className="text-sm font-extrabold text-slate-900 truncate group-hover:text-indigo-600 transition-colors">
+                      {!isS && (
+                        <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">
+                          <Folder size={10} className="text-slate-400" />
+                          <span>โฟลเดอร์โครงการหมู่บ้าน</span>
+                        </div>
+                      )}
+                      <h4 className={`font-extrabold text-slate-900 truncate group-hover:text-indigo-600 transition-colors ${isS ? 'text-xs' : 'text-sm'}`}>
                         {folder.name}
                       </h4>
-                      <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
+                      <p className={`text-slate-500 font-medium truncate mt-0.5 ${isS ? 'text-[10px]' : 'text-xs'}`}>
                         รูปแบบบ้าน: <span className="text-slate-800 font-semibold">{samplePhoto?.houseType || 'ยังไม่กำหนด'}</span>
                       </p>
                     </div>
 
                     {/* Quick actions for folder */}
-                    <div className="pt-3.5 mt-3 border-t border-slate-200/50 flex justify-between items-center text-xs text-slate-500 font-semibold">
-                      <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg truncate max-w-[120px]">
+                    <div className={`mt-3 border-t border-slate-200/50 flex justify-between items-center text-slate-500 font-semibold ${isS ? 'pt-2.5 text-[10px]' : 'pt-3.5 text-xs'}`}>
+                      <span className={`bg-slate-100 text-slate-500 rounded-lg truncate ${isS ? 'text-[9px] px-1.5 py-0.5 max-w-[80px]' : 'text-[10px] px-2 py-0.5 max-w-[120px]'}`}>
                         {samplePhoto?.curtainStyle.split(', ')[0] || 'ผ้าม่าน'}
                       </span>
                       <button
                         onClick={(e) => downloadFolder(folder.items, folder.name, e)}
-                        className="p-1.5 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 transition-all flex items-center gap-1 text-[10px]"
+                        className={`rounded-lg hover:bg-indigo-50 hover:text-indigo-600 transition-all flex items-center gap-1 ${isS ? 'p-1 text-[9px]' : 'p-1.5 text-[10px]'}`}
                         title="ดาวน์โหลดทั้งโฟลเดอร์"
                       >
-                        <Download size={13} />
-                        ดาวน์โหลด
+                        <Download size={isS ? 11 : 13} />
+                        {!isS && "ดาวน์โหลด"}
                       </button>
                     </div>
                   </div>
@@ -615,7 +719,7 @@ export default function PortfolioPage({
       {/* VIEW PANEL 3: FLAT GRID VIEW (SHOW ALL AS INDIVIDUAL SHOWN CARDS) */}
       {!openFolderKey && viewMode === 'grid' && (
         <>
-          {filteredPhotos.length === 0 ? (
+          {sortedPhotos.length === 0 ? (
             <div className="text-center py-20 bg-white/40 border border-slate-200/40 rounded-3xl">
               <ImageIcon className="mx-auto text-slate-300 mb-3" size={48} />
               <p className="text-sm font-semibold text-slate-800">ไม่พบรูปผลงานติดตั้งตามที่ระบุ</p>
@@ -623,7 +727,7 @@ export default function PortfolioPage({
             </div>
           ) : (
             <div className={`grid ${gridClass}`}>
-              {filteredPhotos.map((photo) => (
+              {sortedPhotos.map((photo) => (
                 <PhotoCard
                   key={photo.id}
                   photo={photo}
@@ -696,6 +800,7 @@ function PhotoCard({
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           style={{ filter: activePreset?.cssFilter || 'none' }}
           referrerPolicy="no-referrer"
+          loading="lazy"
         />
 
         {/* Requirement 3: Set/Show Folder Cover */}
@@ -842,7 +947,7 @@ function PhotoCard({
               <div className="flex flex-wrap gap-0.5 mt-0.5">
                 {photo.hashtags.map((tag, idx) => (
                   <span key={idx} className="font-bold text-indigo-600 bg-indigo-50/70 px-1 py-0.5 rounded text-[9px]">
-                    #{tag.split(' ')[0]}
+                    #{tag}
                   </span>
                 ))}
               </div>
