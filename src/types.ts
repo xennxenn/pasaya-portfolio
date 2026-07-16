@@ -25,6 +25,7 @@ export interface SavedPhotoItem extends PhotoItem {
   employeeId?: string; // ID ของพนักงานที่อัปโหลด เพื่อให้ตรวจสอบสิทธิ์แก้ไขได้ถูกต้อง
   likedBy?: string[]; // รายชื่อ ID หรือ username ของพนักงานที่กดถูกใจรูปนี้
   batchId?: string; // รหัสกลุ่มอัปโหลดพร้อมกัน
+  hidden?: boolean; // ป้ายสถานะซ่อนไม่ให้ผู้อื่นเห็น (แอดมินสามารถซ่อน/แสดงได้)
 }
 
 export interface EmployeeUser {
@@ -57,6 +58,7 @@ export interface MasterDataConfigs {
   cloudinaryUploadPreset?: string;
   cloudinaryEnabled?: boolean;
   dbSeeded?: boolean;
+  folderCovers?: { [village: string]: string };
 }
 
 export interface CurtainInstallation {

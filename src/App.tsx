@@ -10,7 +10,7 @@ import {
   Plus,
   AlertCircle
 } from 'lucide-react';
-import { initDB, getAllPhotos, savePhoto, toggleLikePhoto, deletePhoto, saveUserLog, getMasterData } from './lib/db';
+import { initDB, getAllPhotos, savePhoto, toggleLikePhoto, deletePhoto, saveUserLog, getMasterData, updatePhoto, updateBatchPhotos, saveMasterData } from './lib/db';
 import { uploadToCloudinary } from './lib/cloudinary';
 import { UploadProgress, COLOR_PRESETS, SavedPhotoItem, EmployeeUser } from './types';
 import Sidebar from './components/Sidebar';
@@ -52,6 +52,16 @@ export default function App() {
   
   // Lightbox Modal state
   const [selectedPhoto, setSelectedPhoto] = useState<SavedPhotoItem | null>(null);
+  const [lightboxList, setLightboxList] = useState<SavedPhotoItem[]>([]);
+
+  const handleOpenLightbox = (photo: SavedPhotoItem, list?: SavedPhotoItem[]) => {
+    setSelectedPhoto(photo);
+    if (list) {
+      setLightboxList(list);
+    } else {
+      setLightboxList(photos);
+    }
+  };
 
   // Photo edit modal state
   const [editingPhoto, setEditingPhoto] = useState<SavedPhotoItem | null>(null);
@@ -191,6 +201,100 @@ export default function App() {
     } catch (err) {
       console.error(err);
       showToast('ไม่สามารถอัปเดตสถานะถูกใจได้', 'error');
+    }
+  };
+
+  // Toggle Hide Photo (Admin only)
+  const handleToggleHidePhoto = async (id: string) => {
+    if (activeUser?.role !== 'admin') {
+      showToast('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถซ่อนหรือแสดงรูปภาพได้', 'error');
+      return;
+    }
+    const targetPhoto = photos.find(p => p.id === id);
+    if (!targetPhoto) return;
+
+    try {
+      const nextHiddenState = !targetPhoto.hidden;
+      await updatePhoto(id, { hidden: nextHiddenState });
+      
+      // Update local state
+      setPhotos(prev => prev.map(p => p.id === id ? { ...p, hidden: nextHiddenState } : p));
+      
+      // Update selected photo if lightbox is open on it
+      if (selectedPhoto && selectedPhoto.id === id) {
+        setSelectedPhoto(prev => prev ? { ...prev, hidden: nextHiddenState } : null);
+      }
+
+      showToast(nextHiddenState ? 'ซ่อนรูปภาพนี้เรียบร้อยแล้ว' : 'แสดงรูปภาพนี้ตามปกติแล้ว', 'success');
+
+      // Log action
+      await saveUserLog(
+        'admin_config_update',
+        activeUser.name,
+        `${nextHiddenState ? 'ซ่อน' : 'แสดง'}รูปภาพผลงาน โครงการ: "${targetPhoto.villageName}" (${targetPhoto.fileName})`
+      );
+    } catch (err) {
+      console.error('Error toggling hide status:', err);
+      showToast('ไม่สามารถเปลี่ยนสถานะซ่อนของรูปภาพได้', 'error');
+    }
+  };
+
+  // Toggle Hide Folder (Admin only)
+  const handleToggleHideFolder = async (villageName: string, hide: boolean) => {
+    if (activeUser?.role !== 'admin') {
+      showToast('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถซ่อนหรือแสดงโฟลเดอร์ได้', 'error');
+      return;
+    }
+
+    try {
+      const folderPhotos = photos.filter(p => (p.villageName || 'โครงการไม่ระบุชื่อ') === villageName);
+      if (folderPhotos.length === 0) return;
+
+      const ids = folderPhotos.map(p => p.id);
+      await updateBatchPhotos(ids, { hidden: hide });
+
+      // Update local state
+      setPhotos(prev => prev.map(p => (p.villageName || 'โครงการไม่ระบุชื่อ') === villageName ? { ...p, hidden: hide } : p));
+
+      showToast(hide ? `ซ่อนโฟลเดอร์โครงการ "${villageName}" ทั้งหมดเรียบร้อย` : `แสดงโฟลเดอร์โครงการ "${villageName}" ทั้งหมดตามปกติแล้ว`, 'success');
+
+      // Log action
+      await saveUserLog(
+        'admin_config_update',
+        activeUser.name,
+        `${hide ? 'ซ่อน' : 'แสดง'}โฟลเดอร์โครงการ: "${villageName}" (${ids.length} รูปภาพ)`
+      );
+    } catch (err) {
+      console.error('Error toggling folder hide status:', err);
+      showToast('ไม่สามารถเปลี่ยนสถานะซ่อนของโฟลเดอร์ได้', 'error');
+    }
+  };
+
+  // Update persistent folder covers in Firestore (Admin only)
+  const handleUpdateFolderCovers = async (updatedCovers: { [village: string]: string }) => {
+    if (activeUser?.role !== 'admin') {
+      showToast('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถตั้งรูปภาพหน้าปกโครงการได้', 'error');
+      return;
+    }
+    try {
+      const currentConfigs = await getMasterData();
+      const updatedConfigs = {
+        ...currentConfigs,
+        folderCovers: updatedCovers
+      };
+      await saveMasterData(updatedConfigs);
+      setConfigs(updatedConfigs);
+      showToast('บันทึกรูปภาพหน้าปกโครงการเรียบร้อย มีผลต่อพนักงานทุกคน', 'success');
+
+      // Log action
+      await saveUserLog(
+        'admin_config_update',
+        activeUser.name,
+        `ตั้งรูปภาพหน้าปกโครงการใหม่เพื่อให้พนักงานทุกคนเห็นร่วมกัน`
+      );
+    } catch (err) {
+      console.error('Error updating folder covers:', err);
+      showToast('ไม่สามารถบันทึกรูปภาพหน้าปกโครงการไปยังเซิร์ฟเวอร์ได้', 'error');
     }
   };
 
@@ -612,10 +716,13 @@ export default function App() {
                           configs={configs}
                           onToggleLike={handleToggleLike}
                           onDeletePhoto={handleDeletePhoto}
-                          onOpenLightbox={setSelectedPhoto}
+                          onOpenLightbox={handleOpenLightbox}
                           activeUser={activeUser}
                           onEditPhoto={setEditingPhoto}
                           onSharePhoto={triggerImageShare}
+                          onToggleHidePhoto={handleToggleHidePhoto}
+                          onToggleHideFolder={handleToggleHideFolder}
+                          onUpdateFolderCovers={handleUpdateFolderCovers}
                         />
                       </motion.div>
                     );
@@ -652,12 +759,15 @@ export default function App() {
                           configs={configs}
                           onToggleLike={handleToggleLike}
                           onDeletePhoto={handleDeletePhoto}
-                          onOpenLightbox={setSelectedPhoto}
+                          onOpenLightbox={handleOpenLightbox}
                           activeUser={activeUser}
                           title="ผลงานติดตั้งผ้าม่านที่คุณถูกใจ"
                           isFavoriteOnly={true}
                           onEditPhoto={setEditingPhoto}
                           onSharePhoto={triggerImageShare}
+                          onToggleHidePhoto={handleToggleHidePhoto}
+                          onToggleHideFolder={handleToggleHideFolder}
+                          onUpdateFolderCovers={handleUpdateFolderCovers}
                         />
                       </motion.div>
                     );
@@ -709,7 +819,7 @@ export default function App() {
           {/* Lightbox Specification Modal View */}
           <Modal
             photo={selectedPhoto}
-            allPhotos={photos}
+            allPhotos={lightboxList.length > 0 ? lightboxList : photos}
             onClose={() => setSelectedPhoto(null)}
             onSelectPhoto={setSelectedPhoto}
             onToggleLike={handleToggleLike}

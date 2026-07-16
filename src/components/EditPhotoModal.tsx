@@ -227,6 +227,15 @@ export default function EditPhotoModal({
   const handleSaveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Enforce ownership permission check
+    if (activeUser?.role !== 'admin') {
+      const isOwner = photo.employeeId === activeUser?.id || photo.employee === activeUser?.name;
+      if (!isOwner) {
+        showToast('คุณไม่มีสิทธิ์แก้ไขผลงานของผู้อื่น เฉพาะแอดมินหรือเจ้าของผลงานเท่านั้นที่ทำได้', 'error');
+        return;
+      }
+    }
+
     if (!villageName.trim()) {
       showToast('กรุณากรอกชื่อหมู่บ้าน/โครงการ', 'error');
       return;
